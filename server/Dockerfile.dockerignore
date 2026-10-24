@@ -1,0 +1,6 @@
+.git
+.tj-worktrees
+**/build
+**/.gradle
+.kotlin
+app
