@@ -1,0 +1,24 @@
+# Attributions
+
+## Stockfish
+
+- Version: Stockfish 19 (release tag `sf_19`), official `stockfish-android-arm64-universal` build.
+- License: GNU General Public License v3.0 or later (full text: https://www.gnu.org/licenses/gpl-3.0.txt).
+- Source code: https://github.com/official-stockfish/Stockfish/tree/sf_19
+- Release asset: https://github.com/official-stockfish/Stockfish/releases/tag/sf_19
+- Project site: https://stockfishchess.org
+
+The binary is shipped unmodified, exactly as published by the Stockfish developers, as a separate
+executable (`libstockfish.so` in the arm64-v8a native library directory). AirChess does not link
+against it: the app starts it as a child process and talks to it only over the UCI text protocol.
+The repository does not contain the binary. The Gradle task `fetchStockfish` downloads the release
+asset at build time into `.cache/stockfish/`, verifies it against the pinned archive SHA-256 below
+and copies the executable into the APK unchanged.
+
+SHA-256 of `stockfish-android-arm64-universal.tar.gz`:
+`ebb24051aa4a222b4daaf049b882ecf1163d370c128fe02316602643f4d5e426`
+
+SHA-256 of the uncompressed binary:
+`ffd8fc2004d3d19f9fdab95d84c92709aea92e8d3af405eda0b281b23cf1daf8`
+
+The Stockfish authors are listed at https://github.com/official-stockfish/Stockfish/blob/sf_19/AUTHORS.
