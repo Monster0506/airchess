@@ -2,12 +2,18 @@ import java.io.DataInputStream
 import java.io.File
 import java.net.URI
 import java.security.MessageDigest
+import java.util.Properties
 import java.util.zip.GZIPInputStream
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
 }
+
+val serverUrlOverride: String? = providers.gradleProperty("airchess.serverUrl").orNull
+    ?: providers.fileContents(rootProject.layout.projectDirectory.file("local.properties")).asText.orNull
+        ?.let { text -> Properties().apply { load(text.reader()) }.getProperty("airchess.serverUrl") }
+val defaultServerUrl = serverUrlOverride?.trim()?.ifEmpty { null } ?: "ws://localhost:8080/ws"
 
 // Stockfish is far too large to commit, so the official release asset is downloaded once
 // into a cache outside build/, checked against a pinned SHA-256 and expanded into jniLibs.
@@ -157,6 +163,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+        buildConfigField("String", "DEFAULT_SERVER_URL", "\"${defaultServerUrl.replace("\"", "")}\"")
     }
 
     buildTypes {
@@ -173,6 +180,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
@@ -189,6 +197,7 @@ android {
 
 dependencies {
     implementation(project(":chess"))
+    implementation(project(":protocol"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
@@ -199,6 +208,8 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.ktor.client.websockets)
     implementation(libs.sceneview.ar)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
