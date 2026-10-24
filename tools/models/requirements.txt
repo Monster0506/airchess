@@ -1,0 +1,3 @@
+numpy==2.4.3
+# Only needed for --preview
+matplotlib==3.11.1
