@@ -28,3 +28,7 @@ Create a game and share a six-character code. Your friend joins from their own p
 - No AR on your phone? Play the same board in 3D.
 
 **AirChess. Chess, wherever you are.**
+
+## Pointing the app at a server
+
+The default server URL is `ws://localhost:8080/ws`, which reaches a server on your computer after `adb reverse tcp:8080 tcp:8080`. To bake in another one, set `airchess.serverUrl` in `local.properties` or pass `-Pairchess.serverUrl=ws://192.168.1.20:8080/ws`. The URL can also be edited in the Play online sheet.
