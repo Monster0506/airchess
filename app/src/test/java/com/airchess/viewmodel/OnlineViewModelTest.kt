@@ -106,7 +106,7 @@ class OnlineViewModelTest {
         vm.tap("e2")
 
         val state = vm.state.value
-        assertEquals(ChessColor.BLACK, state.perspective)
+        assertEquals(ChessColor.BLACK, state.board.perspective)
         assertTrue(state.isOnlineGame)
         assertEquals("Alice", state.online?.opponentName)
         assertEquals("Opponent's move", state.statusText)
@@ -288,7 +288,7 @@ class OnlineViewModelTest {
         deliver(joined(Side.BLACK, snapshot(gameNumber = 2, whiteName = "Bob", blackName = "Alice")))
 
         val state = vm.state.value
-        assertEquals(ChessColor.BLACK, state.perspective)
+        assertEquals(ChessColor.BLACK, state.board.perspective)
         assertTrue(state.moveHistory.isEmpty())
         assertNull(state.online!!.resultText)
         assertFalse(state.online.incomingRematch)
@@ -370,7 +370,7 @@ class OnlineViewModelTest {
         assertEquals(ClientMessage.Leave, client.sent.last())
         assertTrue(client.closed)
         assertNull(state.online)
-        assertEquals(ChessColor.WHITE, state.perspective)
+        assertEquals(ChessColor.WHITE, state.board.perspective)
         assertTrue(state.moveHistory.isEmpty())
         vm.tap("e2", "e4")
         assertEquals(1, vm.state.value.moveHistory.size)

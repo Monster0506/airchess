@@ -225,8 +225,7 @@ class ChessViewModel(
         mutate {
             it.copy(
                 online = null,
-                perspective = ChessColor.WHITE,
-                board = it.board.copy(hint = null),
+                board = it.board.copy(hint = null, perspective = ChessColor.WHITE),
                 engine = EngineUiState(),
                 pendingPromotion = null,
             )
@@ -496,7 +495,7 @@ class ChessViewModel(
         sessionCode = joined.code
         mutate {
             it.copy(
-                perspective = joined.side.toColor(),
+                board = it.board.copy(perspective = joined.side.toColor()),
                 online = (it.online ?: OnlineUiState()).copy(code = joined.code, mySide = joined.side),
             )
         }
@@ -514,7 +513,7 @@ class ChessViewModel(
         if (error.code == ErrorCode.GAME_NOT_FOUND || error.code == ErrorCode.INVALID_TOKEN) {
             closeSession()
             game.reset()
-            mutate { it.copy(online = null, perspective = ChessColor.WHITE, board = it.board.copy(hint = null)) }
+            mutate { it.copy(online = null, board = it.board.copy(hint = null, perspective = ChessColor.WHITE)) }
         }
     }
 

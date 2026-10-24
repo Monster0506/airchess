@@ -56,8 +56,6 @@ data class OnlineUiState(
 
 data class GameUiState(
     val board: BoardViewState = BoardViewState(),
-    /** Side nearest to the user; the AR layer rotates the board accordingly. */
-    val perspective: ChessColor = ChessColor.WHITE,
     val currentTurn: ChessColor = ChessColor.WHITE,
     val gameStatus: GameStatus = GameStatus.IN_PROGRESS,
     val statusText: String = "White to move",
