@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "airchess"
 include(":app")
+include(":chess")
