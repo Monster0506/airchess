@@ -158,6 +158,7 @@ private fun ActionBar(state: GameUiState, actions: GameActions) {
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = SURFACE_ALPHA),
+        contentColor = MaterialTheme.colorScheme.onSurface,
         shadowElevation = 2.dp,
     ) {
         Row(

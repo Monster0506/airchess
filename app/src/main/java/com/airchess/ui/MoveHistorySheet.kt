@@ -109,6 +109,7 @@ fun RecentMovesStrip(
         modifier = modifier,
         shape = RoundedCornerShape(percent = 50),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
         shadowElevation = 2.dp,
     ) {
         Text(

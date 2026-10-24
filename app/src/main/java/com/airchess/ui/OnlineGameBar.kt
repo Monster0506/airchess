@@ -98,6 +98,7 @@ private fun PlayerBar(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = SURFACE_ALPHA),
+        contentColor = MaterialTheme.colorScheme.onSurface,
         shadowElevation = 2.dp,
     ) {
         Row(
@@ -187,6 +188,7 @@ private fun ResultCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = SURFACE_ALPHA),
+        contentColor = MaterialTheme.colorScheme.onSurface,
         shadowElevation = 4.dp,
     ) {
         Column(
@@ -216,6 +218,7 @@ private fun CardRow(content: @Composable androidx.compose.foundation.layout.RowS
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = SURFACE_ALPHA),
+        contentColor = MaterialTheme.colorScheme.onSurface,
         shadowElevation = 4.dp,
     ) {
         Row(
