@@ -18,3 +18,4 @@ rootProject.name = "airchess"
 include(":protocol")
 include(":app")
 include(":chess")
+include(":server")

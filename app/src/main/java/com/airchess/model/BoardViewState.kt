@@ -1,5 +1,6 @@
 package com.airchess.model
 
+import com.airchess.chess.ChessColor
 import com.airchess.chess.ChessMove
 import com.airchess.chess.ChessPosition
 import com.airchess.chess.ChessSquare
@@ -13,6 +14,8 @@ data class BoardViewState(
     val hint: ChessMove? = null,
     val threatenedSquares: Set<ChessSquare> = emptySet(),
     val checkedKingSquare: ChessSquare? = null,
+    /** Side the viewer plays; the board is shown with that side's pieces nearest. */
+    val perspective: ChessColor = ChessColor.WHITE,
 )
 
 enum class TrackingStatus {

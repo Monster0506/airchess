@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ar_coach_find_table">Move your phone around to find a table</string>
+    <string name="ar_coach_tap_to_place">Tap to place the board</string>
+    <string name="ar_tracking_lost">Tracking lost. Move your phone slowly to recover.</string>
+
+    <string name="ar_gate_checking">Checking AR support...</string>
+
+    <string name="ar_unsupported_title">AR is not available</string>
+    <string name="ar_unsupported_body">This device or its Google Play Services for AR cannot run augmented reality. You can still play on a 3D board.</string>
+    <string name="ar_session_failed_body">The AR session could not start: %1$s</string>
+    <string name="ar_play_in_3d">Play in 3D</string>
+
+    <string name="ar_install_title">Install Google Play Services for AR</string>
+    <string name="ar_install_body">AirChess needs an up-to-date Google Play Services for AR to place the board on your table.</string>
+    <string name="ar_install_action">Install or update</string>
+    <string name="ar_install_declined">The installation was declined. You can play on a 3D board instead.</string>
+
+    <string name="ar_camera_title">Camera access needed</string>
+    <string name="ar_camera_rationale">AirChess uses the camera to show the board on your table. Nothing is recorded or sent anywhere.</string>
+    <string name="ar_camera_grant">Allow camera</string>
+    <string name="ar_camera_denied_body">Without the camera the board cannot be shown in AR. Allow camera access to continue.</string>
+    <string name="ar_camera_blocked_body">Camera access is turned off for AirChess. Enable it in the app settings to play in AR.</string>
+    <string name="ar_camera_open_settings">Open settings</string>
+</resources>
