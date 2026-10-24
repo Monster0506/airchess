@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 rootProject.name = "airchess"
 include(":protocol")
 include(":app")
+include(":chess")

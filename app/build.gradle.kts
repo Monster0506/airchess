@@ -37,6 +37,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":chess"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
