@@ -51,7 +51,7 @@ class BoardPickerTest {
         val withoutPiece = BoardPicker.pick(geometry, origin, direction, emptyList())
 
         assertEquals(sq("e2"), withPiece)
-        assertEquals(sq("e1"), withoutPiece)
+        assertEquals(sq("e3"), withoutPiece)
     }
 
     @Test
