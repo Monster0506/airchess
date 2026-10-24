@@ -178,7 +178,9 @@ private fun ActionBar(state: GameUiState, actions: GameActions) {
                 )
             }
             ActionButton(Icons.Filled.CenterFocusStrong, "Reposition", actions.onReposition)
-            ActionButton(Icons.Filled.Lightbulb, "Hint", actions.onHint, enabled = !gameOver && !state.engine.isAnalyzing)
+            if (state.hintsAllowed) {
+                ActionButton(Icons.Filled.Lightbulb, "Hint", actions.onHint, enabled = !gameOver && !state.engine.isAnalyzing)
+            }
             ActionButton(Icons.Filled.History, "History", actions.onHistory)
             ActionButton(Icons.Filled.Settings, "Settings", actions.onSettings)
             ActionButton(Icons.Filled.Public, "Online", actions.onOnline)

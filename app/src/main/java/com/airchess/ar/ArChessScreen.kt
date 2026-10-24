@@ -3,7 +3,6 @@ package com.airchess.ar
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -41,6 +40,7 @@ import io.github.sceneview.rememberOnGestureListener
 
 private const val PLANE_COUNT_INTERVAL_FRAMES = 15
 private const val CHIP_ALPHA = 0.65f
+private val COACHING_OFFSET = 240.dp
 
 /** Per-session bookkeeping that runs on the frame callback without allocating. */
 private class FrameProbe {
@@ -174,7 +174,7 @@ fun ArChessScreen(
             else -> stringResource(R.string.ar_coach_find_table)
         }
         if (coaching != null) {
-            CoachingChip(coaching, Modifier.align(Alignment.TopCenter))
+            CoachingChip(coaching, Modifier.align(Alignment.Center).padding(top = COACHING_OFFSET))
         }
     }
 }
@@ -182,9 +182,7 @@ fun ArChessScreen(
 @Composable
 private fun CoachingChip(text: String, modifier: Modifier = Modifier) {
     Surface(
-        modifier = modifier
-            .statusBarsPadding()
-            .padding(top = 8.dp),
+        modifier = modifier,
         shape = RoundedCornerShape(16.dp),
         color = Color.Black.copy(alpha = CHIP_ALPHA),
         contentColor = Color.White,

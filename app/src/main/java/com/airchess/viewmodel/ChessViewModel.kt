@@ -186,7 +186,7 @@ class ChessViewModel(
     }
 
     fun requestHint() {
-        if (game.gameStatus.isGameOver) {
+        if (game.gameStatus.isGameOver || !mutableState.value.hintsAllowed) {
             return
         }
         analysisJob?.cancel()

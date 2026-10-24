@@ -77,6 +77,10 @@ data class GameUiState(
 
     val isMyTurn: Boolean
         get() = online?.myColor?.let { it == currentTurn } ?: true
+
+    /** Engine help is fair game offline and in post-game review, never during a live online game. */
+    val hintsAllowed: Boolean
+        get() = online?.code == null || online.resultText != null
 }
 
 enum class HapticKind {

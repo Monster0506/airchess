@@ -36,6 +36,7 @@ class OnlineViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
     private val client = FakeClient()
+    private val engine = FakeEngine()
 
     @Before
     fun setUp() {
@@ -48,7 +49,7 @@ class OnlineViewModelTest {
     }
 
     private fun viewModel() = ChessViewModel(
-        engineProvider = { FakeEngine() },
+        engineProvider = { engine },
         clientFactory = { client },
         engineDispatcher = dispatcher,
         now = { dispatcher.scheduler.currentTime },
@@ -374,5 +375,31 @@ class OnlineViewModelTest {
         assertTrue(state.moveHistory.isEmpty())
         vm.tap("e2", "e4")
         assertEquals(1, vm.state.value.moveHistory.size)
+    }
+
+    @Test
+    fun hintsAreBlockedDuringOnlineGame() = runTest(dispatcher) {
+        val vm = viewModel()
+        join(vm, Side.WHITE)
+
+        vm.requestHint()
+        runCurrent()
+
+        assertTrue(engine.fens.isEmpty())
+        assertFalse(vm.state.value.hintsAllowed)
+        assertNull(vm.state.value.board.hint)
+    }
+
+    @Test
+    fun hintsAllowedOnceOnlineGameIsOver() = runTest(dispatcher) {
+        val vm = viewModel()
+        val finished = GameResult(Side.BLACK, ResultReason.RESIGNATION)
+        join(vm, Side.WHITE, snapshot(listOf("e2e4", "e7e5"), result = finished))
+
+        vm.requestHint()
+        runCurrent()
+
+        assertTrue(vm.state.value.hintsAllowed)
+        assertEquals(1, engine.fens.size)
     }
 }
