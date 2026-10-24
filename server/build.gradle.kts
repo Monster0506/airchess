@@ -20,6 +20,7 @@ application {
 
 dependencies {
     implementation(project(":protocol"))
+    implementation(project(":chess"))
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.server.netty)
     implementation(libs.ktor.server.websockets)
@@ -27,6 +28,7 @@ dependencies {
     runtimeOnly(libs.logback.classic)
 
     testImplementation(libs.junit)
+    testImplementation(kotlin("test"))
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.ktor.client.websockets)
