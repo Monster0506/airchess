@@ -13,6 +13,8 @@ interface Prefs {
     var prefer3d: Boolean
     var savedMoves: String
     var savedMode: String
+    var savedComputerSide: String
+    var savedComputerDifficulty: String
     var savedOnlineCode: String
     var savedOnlineToken: String
 }
@@ -45,6 +47,13 @@ class SharedPrefs(context: Context, private val defaultServerUrl: String) : Pref
     override var savedMode: String
         get() = store.getString(KEY_MODE, "").orEmpty()
         set(value) = store.edit { putString(KEY_MODE, value) }
+    override var savedComputerSide: String
+        get() = store.getString(KEY_COMPUTER_SIDE, "WHITE").orEmpty()
+        set(value) = store.edit { putString(KEY_COMPUTER_SIDE, value) }
+
+    override var savedComputerDifficulty: String
+        get() = store.getString(KEY_COMPUTER_DIFFICULTY, "MEDIUM").orEmpty()
+        set(value) = store.edit { putString(KEY_COMPUTER_DIFFICULTY, value) }
 
     override var savedOnlineCode: String
         get() = store.getString(KEY_ONLINE_CODE, "").orEmpty()
@@ -82,6 +91,8 @@ class SharedPrefs(context: Context, private val defaultServerUrl: String) : Pref
         const val KEY_PREFER_3D = "prefer_3d"
         const val KEY_MOVES = "saved_moves"
         const val KEY_MODE = "saved_mode"
+        const val KEY_COMPUTER_SIDE = "computer_side"
+        const val KEY_COMPUTER_DIFFICULTY = "computer_difficulty"
         const val KEY_ONLINE_CODE = "saved_online_code"
         const val KEY_ONLINE_TOKEN = "saved_online_token"
         const val KEY_DEPTH = "engine_depth"

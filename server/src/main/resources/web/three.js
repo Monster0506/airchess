@@ -42,16 +42,21 @@ let arrow = null;
 let cameraFlipped = false;
 let previousMove = null;
 let moveAnimation = null;
+let pointerStart = null;
+let onSquare;
 
-loader.load('/play/models/board.glb', ({ scene: model }) => {
+const modelLoads = [loader.loadAsync('/play/models/board.glb').then(({ scene: model }) => {
   model.traverse(object => { if (object.isMesh) { object.castShadow = true; object.receiveShadow = true; } });
   scene.add(model);
-}, undefined, error => console.error('Board model failed', error));
+})];
+const pieceNames = { king: 'k', queen: 'q', rook: 'r', bishop: 'b', knight: 'n', pawn: 'p' };
 for (const color of ['white', 'black']) {
-  for (const type of ['king', 'queen', 'rook', 'bishop', 'knight', 'pawn']) {
-    loader.load(`/play/models/${color}_${type}.glb`, ({ scene: model }) => pieces.set(`${color[0]}${type[0]}`, model), undefined, error => console.error('Piece model failed', error));
+  for (const [name, symbol] of Object.entries(pieceNames)) {
+    modelLoads.push(loader.loadAsync(`/play/models/${color}_${name}.glb`)
+      .then(({ scene: model }) => pieces.set(`${color[0]}${symbol}`, model)));
   }
 }
+const modelsReady = Promise.all(modelLoads);
 function addMarker(square, color, opacity, type = 'square') {
   const p = squarePos(square);
   const geometry = type === 'dot' ? new THREE.CircleGeometry(.007, 20) : type === 'ring' ? new THREE.RingGeometry(.015, .022, 32) : squareGeometry;
@@ -62,6 +67,10 @@ function addMarker(square, color, opacity, type = 'square') {
   markers.add(marker);
 }
 function update(chess, flipped, selected, legal, last, check, threats) {
+  for (const marker of markers.children) {
+    if (marker.geometry !== squareGeometry) marker.geometry.dispose();
+    marker.material.dispose();
+  }
   markers.clear();
   pieceGroup.clear();
   if (cameraFlipped !== flipped) {
@@ -106,10 +115,19 @@ function update(chess, flipped, selected, legal, last, check, threats) {
     if (piece && piece.color !== chess.turn() && chess.isAttacked(square, chess.turn())) addMarker(square, 0xd7463c, .25);
   }
 }
-export async function init3d() {
+export async function init3d(selectSquare) {
+  onSquare = selectSquare;
+  await modelsReady;
   if (!ready) {
-    canvas.addEventListener('pointerdown', pick);
+    canvas.addEventListener('pointerdown', event => { pointerStart = { x: event.clientX, y: event.clientY, id: event.pointerId }; });
+    canvas.addEventListener('pointerup', event => {
+      if (!pointerStart || pointerStart.id !== event.pointerId) return;
+      const distance = Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y);
+      pointerStart = null;
+      if (distance < 6) pick(event);
+    });
     renderer.setAnimationLoop(() => {
+      if (canvas.offsetParent === null || document.hidden) return;
       controls.update();
       if (moveAnimation) {
         const progress = Math.min(1, (performance.now() - moveAnimation.start) / 180);
@@ -133,7 +151,13 @@ export function resize3d() {
 }
 export function render3d(chess, flipped, selected, legal, last, check, threats) { update(chess, flipped, selected, legal, last, check, threats); }
 export function setArrow3d(move) {
-  if (arrow) scene.remove(arrow);
+  if (arrow) {
+    scene.remove(arrow);
+    arrow.line.geometry.dispose();
+    arrow.cone.geometry.dispose();
+    arrow.line.material.dispose();
+    arrow.cone.material.dispose();
+  }
   arrow = null;
   if (!move || !ready) return;
   const a = squarePos(move.slice(0, 2)), b = squarePos(move.slice(2, 4));
@@ -154,8 +178,5 @@ function pick(event) {
     if (file < 0 || file > 7 || rank < 0 || rank > 7) return;
     square = String.fromCharCode(97 + file) + (8 - rank);
   }
-  if (window.airchess) {
-    window.airchess.lastPickedSquare = square;
-    window.airchess.selectSquare(square);
-  }
+  onSquare(square);
 }

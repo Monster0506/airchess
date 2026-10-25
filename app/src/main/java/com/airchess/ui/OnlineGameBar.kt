@@ -206,7 +206,7 @@ private fun ResultCard(
                     online.outgoingRematch -> Button(onClick = {}, enabled = false) { Text("Rematch requested") }
                     else -> Button(onClick = onOfferRematch) { Text("Rematch") }
                 }
-                OutlinedButton(onClick = onLeave) { Text("Leave") }
+                OutlinedButton(onClick = onLeave) { Text("Home") }
             }
         }
     }

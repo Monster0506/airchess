@@ -12,6 +12,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -21,6 +23,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.TextButton
+import com.airchess.model.ComputerDifficulty
+import com.airchess.protocol.ColorChoice
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
@@ -66,14 +73,18 @@ fun Onboarding(name: String, onComplete: (String) -> Unit) {
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun HomeScreen(
     state: GameUiState,
     onLocal: () -> Unit,
-    onComputer: () -> Unit,
+    onComputer: (ColorChoice, ComputerDifficulty) -> Unit,
     onOnline: () -> Unit,
     onResume: () -> Unit,
     onSettings: () -> Unit,
 ) {
+    var chooseComputer by rememberSaveable { mutableStateOf(false) }
+    var playerSide by rememberSaveable { mutableStateOf(ColorChoice.WHITE) }
+    var difficulty by rememberSaveable { mutableStateOf(ComputerDifficulty.MEDIUM) }
     val foreground = Color.White
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("AIRCHESS", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
@@ -81,13 +92,46 @@ fun HomeScreen(
         Text("Play on a table, across the board, or with a friend.", style = MaterialTheme.typography.bodyLarge, color = foreground)
         Spacer(Modifier.height(4.dp))
         if (state.hasResumeGame) {
-            HomeCard("Resume game", "Continue your saved ${if (state.online != null) "online" else state.gameMode} game", onResume)
+            HomeCard("Resume game", "Continue your saved ${if (state.online != null) "online" else state.gameMode.key} game", onResume)
         }
         HomeCard("Play on the table", "Pass and play with someone beside you", onLocal)
-        HomeCard("Play the computer", "Choose a side and difficulty", onComputer)
+        HomeCard("Play the computer", "Choose a side and difficulty", { chooseComputer = true })
         HomeCard("Play a friend online", "Create a game or join with a code", onOnline)
         Spacer(Modifier.height(4.dp))
         OutlinedButton(onClick = onSettings, modifier = Modifier.fillMaxWidth()) { Text("Settings") }
+    }
+    if (chooseComputer) {
+        AlertDialog(
+            onDismissRequest = { chooseComputer = false },
+            title = { Text("Play the computer") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Your side", style = MaterialTheme.typography.labelLarge)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(ColorChoice.WHITE to "White", ColorChoice.BLACK to "Black", ColorChoice.RANDOM to "Random").forEach { (choice, label) ->
+                            FilterChip(selected = playerSide == choice, onClick = { playerSide = choice }, label = { Text(label) })
+                        }
+                    }
+                    Text("Difficulty", style = MaterialTheme.typography.labelLarge)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ComputerDifficulty.values().forEach { option ->
+                            FilterChip(
+                                selected = difficulty == option,
+                                onClick = { difficulty = option },
+                                label = { Text(option.name.lowercase().replaceFirstChar(Char::uppercase)) },
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    chooseComputer = false
+                    onComputer(playerSide, difficulty)
+                }) { Text("Start") }
+            },
+            dismissButton = { TextButton(onClick = { chooseComputer = false }) { Text("Cancel") } },
+        )
     }
 }
 

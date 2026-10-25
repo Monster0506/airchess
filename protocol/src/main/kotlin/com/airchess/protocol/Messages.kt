@@ -91,6 +91,16 @@ data class GameSnapshot(
 }
 
 @Serializable
+enum class CameraSignalKind { READY, OFFER, ANSWER, ICE, STOP }
+
+@Serializable
+data class IceServer(
+    val urls: List<String>,
+    val username: String = "",
+    val credential: String = "",
+)
+
+@Serializable
 sealed interface ClientMessage {
 
     @Serializable
@@ -140,6 +150,13 @@ sealed interface ClientMessage {
     data object Leave : ClientMessage
 
     @Serializable
+    @SerialName("camera_signal")
+    data class CameraSignal(
+        val kind: CameraSignalKind,
+        val payload: String = "",
+    ) : ClientMessage
+
+    @Serializable
     @SerialName("ping")
     data object Ping : ClientMessage
 }
@@ -184,6 +201,20 @@ sealed interface ServerMessage {
     @Serializable
     @SerialName("error")
     data class Error(val code: ErrorCode, val message: String) : ServerMessage
+
+    @Serializable
+    @SerialName("camera_signal")
+    data class CameraSignal(
+        val kind: CameraSignalKind,
+        val payload: String = "",
+    ) : ServerMessage
+
+    @Serializable
+    @SerialName("camera_config")
+    data class CameraConfig(
+        val iceServers: List<IceServer>,
+        val relayError: String? = null,
+    ) : ServerMessage
 
     @Serializable
     @SerialName("pong")

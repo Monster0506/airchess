@@ -90,6 +90,52 @@ class OnlineViewModelTest {
     }
 
     @Test
+    fun invalidJoinCodeShowsInlineErrorWithoutOpeningSocket() = runTest(dispatcher) {
+        val vm = viewModel()
+
+        vm.joinOnlineGame("AB0 34", "Bob", "ws://host/ws")
+
+        assertNull(vm.state.value.online)
+        assertEquals("Enter a valid 6-character game code.", vm.state.value.lobbyError)
+        assertTrue(client.sent.isEmpty())
+    }
+
+    @Test
+    fun savedOnlineCodeAndTokenResumeWhenViewModelStarts() = runTest(dispatcher) {
+        val prefs = FakePrefs().apply {
+            savedOnlineCode = "ABC234"
+            savedOnlineToken = "resume-token"
+        }
+        val vm = ChessViewModel(
+            engineProvider = { engine },
+            clientFactory = { client },
+            prefs = prefs,
+            engineDispatcher = dispatcher,
+            now = { dispatcher.scheduler.currentTime },
+        )
+
+        runCurrent()
+
+        assertEquals(ClientMessage.Resume("ABC234", "resume-token"), client.sent.single())
+        assertEquals("ABC234", vm.state.value.online?.code)
+    }
+
+    @Test
+    fun deepLinkWaitsForOnboardingAndExplicitContinuation() = runTest(dispatcher) {
+        val vm = viewModel()
+        vm.handleDeepLink("ABC234")
+        assertEquals("ABC234", vm.state.value.deepLinkCode)
+        vm.completeOnboarding("Bob")
+        assertEquals("ABC234", vm.state.value.deepLinkCode)
+        assertTrue(client.sent.isEmpty())
+        vm.continueDeepLink()
+        runCurrent()
+
+        assertNull(vm.state.value.deepLinkCode)
+        assertEquals(ClientMessage.JoinGame("ABC234", "Bob"), client.sent.single())
+    }
+
+    @Test
     fun createSendsTimeControlAndColor() = runTest(dispatcher) {
         val vm = viewModel()
 

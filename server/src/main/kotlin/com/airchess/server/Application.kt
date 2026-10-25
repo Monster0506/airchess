@@ -33,6 +33,7 @@ fun main() {
 
 internal fun Application.module(newReferee: () -> MoveReferee = { ChessReferee() }) {
     val registry = RoomRegistry(scope = this, newReferee = newReferee)
+    val cameraRelay = CameraRelay()
     registry.startCleanup()
 
     install(CallLogging)
@@ -46,7 +47,7 @@ internal fun Application.module(newReferee: () -> MoveReferee = { ChessReferee()
         get("/") { call.respondText("AirChess server OK - rooms: ${registry.size}") }
         staticResources("/play", "web")
         webSocket(Protocol.WEBSOCKET_PATH) {
-            val session = Session(registry, WsConnection(this))
+            val session = Session(registry, WsConnection(this), cameraRelay::config)
             try {
                 for (frame in incoming) {
                     if (frame is Frame.Text) {

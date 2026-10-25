@@ -21,6 +21,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.airchess.R
 import com.airchess.chess.ChessSquare
+import com.airchess.media.SceneCapture
 import com.airchess.model.ArStatus
 import com.airchess.model.BoardViewState
 import com.airchess.model.TrackingStatus
@@ -94,6 +95,7 @@ fun ArChessScreen(
     repositionToken: Int,
     onSquareTapped: (ChessSquare) -> Unit,
     onStatusChanged: (ArStatus) -> Unit,
+    capture: SceneCapture,
     modifier: Modifier = Modifier,
     onSessionFailed: (String) -> Unit = {},
 ) {
@@ -134,6 +136,7 @@ fun ArChessScreen(
             materialLoader = materialLoader,
             view = view,
             cameraNode = cameraNode,
+            surfaceMirrorer = capture.rememberMirror(),
             sessionCameraConfig = null,
             planeFindingMode = Config.PlaneFindingMode.HORIZONTAL,
             planeRenderer = placement.isPlacing,

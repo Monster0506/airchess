@@ -10,6 +10,7 @@ Group=exedev
 WorkingDirectory=/opt/airchess
 Environment=PORT=8080
 Environment=JAVA_OPTS=-Xmx256m
+EnvironmentFile=-/etc/airchess.env
 ExecStart=/opt/airchess/server/bin/server
 Restart=always
 RestartSec=5

@@ -54,6 +54,27 @@ data class OnlineUiState(
         get() = if (mySide == Side.BLACK) whiteMillis else blackMillis
 }
 
+data class CameraUiState(
+    val enabled: Boolean = false,
+    val status: String = "Camera off",
+)
+enum class GameMode(val key: String) {
+    LOCAL("local"),
+    COMPUTER("computer"),
+    ONLINE("online");
+
+    companion object {
+        fun fromStored(value: String?): GameMode = entries.firstOrNull { it.key == value } ?: LOCAL
+    }
+}
+
+enum class ComputerDifficulty(val depth: Int) {
+    EASY(8),
+    MEDIUM(12),
+    HARD(16),
+    MAX(20),
+}
+
 data class GameUiState(
     val board: BoardViewState = BoardViewState(),
     val currentTurn: ChessColor = ChessColor.WHITE,
@@ -72,9 +93,14 @@ data class GameUiState(
     val lobbyError: String? = null,
     val onboardingComplete: Boolean = false,
     val prefer3d: Boolean = false,
-    val gameMode: String = "local",
+    val gameMode: GameMode = GameMode.LOCAL,
+    val hasLocalGame: Boolean = false,
     val engineThinking: Boolean = false,
     val deepLinkCode: String? = null,
+    val camera: CameraUiState = CameraUiState(),
+    val cameraError: String? = null,
+    val computerSide: ChessColor = ChessColor.WHITE,
+    val computerDifficulty: ComputerDifficulty = ComputerDifficulty.MEDIUM,
 ) {
     val isOnlineGame: Boolean
         get() = online?.code != null
@@ -86,7 +112,7 @@ data class GameUiState(
         get() = online?.code == null || online.resultText != null
 
     val hasResumeGame: Boolean
-        get() = online?.code != null || moveHistory.isNotEmpty()
+        get() = online?.code != null || (hasLocalGame && !gameStatus.isGameOver)
 }
 
 enum class HapticKind {

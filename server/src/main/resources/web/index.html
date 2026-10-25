@@ -24,14 +24,24 @@
     <div id="boardWrap" class="board-wrap"><div id="board" class="board" role="grid" aria-label="Chess board"></div><canvas id="threeBoard" class="three-board hidden"></canvas></div>
     <div class="player-strip"><div><span id="myName" class="player-name">You</span><span id="mySide" class="side-label"></span></div><span id="myClock" class="clock">—</span></div>
     <div class="toolbar"><button id="undo" class="tool">Undo</button><button id="reset" class="tool">Reset</button><button id="hint" class="tool">Hint</button><label class="depth-choice">Hint depth<select id="hintDepth"><option>8</option><option selected>12</option><option>16</option><option>20</option></select></label><button id="flip" class="tool">Flip</button><button id="viewToggle" class="tool">3D view</button><button id="threats" class="tool">Threats off</button></div><div id="hintText" class="hint-text"></div>
+    <button id="continueLocal" class="tool hidden" type="button">Continue locally</button>
+    <button id="camera-board" class="camera-board hidden" type="button" aria-label="Open opponent view"><video id="boardRemoteVideo" autoplay playsinline muted aria-label="Opponent shared view"></video><span id="cameraBoardStatus">Waiting for opponent view</span></button>
   </section>
   <aside class="game-side"><div class="status-row"><strong id="status">Your move</strong><span id="statusDetail"></span></div>
     <section id="invite" class="invite hidden"><h2>Invite a friend</h2><div id="code" class="invite-code"></div><p>Join my AirChess game</p><div class="actions"><button id="copy" class="button secondary">Copy link</button><button id="share" class="button secondary">Share</button><a id="openApp" class="button app-link hidden">Open in AirChess app</a></div></section>
     <section class="history"><h2>Moves</h2><div id="moves" class="move-list"></div></section>
     <section class="online-controls hidden" id="onlineControls"><button id="resign" class="tool">Resign</button><button id="draw" class="tool">Offer draw</button><button id="acceptDraw" class="tool hidden">Accept draw</button><button id="declineDraw" class="tool hidden">Decline draw</button><button id="rematch" class="tool hidden">Rematch</button><button id="leave" class="tool">Leave game</button></section>
+    <section id="cameraControls" class="camera-controls hidden" aria-label="View sharing"><button id="cameraToggle" class="tool" type="button">Share view</button><span id="cameraStatus" role="status" aria-live="polite"></span><p class="camera-notice">Shares your board view only. No microphone or other apps.</p></section>
     <button id="home" class="tool home-button">Home</button>
   </aside>
 </main>
+<div id="videoStage" class="video-stage hidden" aria-label="Video call">
+  <video id="stageRemoteVideo" autoplay playsinline muted aria-label="Opponent shared view"></video>
+  <p id="stageCameraStatus" class="stage-camera-status" role="status" aria-live="polite">Waiting for opponent view</p>
+  <button id="localVideoSwap" class="local-video-swap" type="button" aria-label="Return to your view"><video id="localVideo" autoplay playsinline muted aria-label="Your shared view"></video></button>
+  <button id="stageBoardToggle" class="tool stage-board-toggle" type="button">Your board</button>
+  <button id="stageCameraOff" class="tool stage-camera-off" type="button">Stop sharing</button>
+</div>
 <div id="promotion" class="overlay hidden" role="dialog" aria-modal="true"><div class="dialog"><h2>Choose promotion</h2><div class="promotion-options"><button data-piece="q">♛</button><button data-piece="r">♜</button><button data-piece="b">♝</button><button data-piece="n">♞</button></div></div></div>
 <div id="gameOver" class="overlay hidden" role="dialog" aria-modal="true"><div class="dialog"><p class="eyebrow">GAME OVER</p><h2 id="resultTitle"></h2><p id="resultReason"></p><div class="actions"><button id="rematchModal" class="button">Rematch</button><button id="newGame" class="button secondary">New game</button><button id="closeModal" class="tool">Home</button></div></div></div>
 <script type="module" src="/play/app.js"></script>

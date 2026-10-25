@@ -14,11 +14,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Handshake
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.automirrored.filled.ScreenShare
+import androidx.compose.material.icons.automirrored.filled.StopScreenShare
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -26,6 +29,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
@@ -39,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airchess.model.EngineUiState
 import com.airchess.model.GameUiState
+import com.airchess.model.GameMode
 
 private const val SURFACE_ALPHA = 0.85f
 private const val DISABLED_ALPHA = 0.38f
@@ -55,9 +60,13 @@ class GameActions(
     val onResign: () -> Unit,
     val onOfferDraw: () -> Unit,
     val onRespondDraw: (Boolean) -> Unit,
-    val onOfferRematch: () -> Unit,
     val onRespondRematch: (Boolean) -> Unit,
+    val onOfferRematch: () -> Unit,
     val onLeave: () -> Unit,
+    val onCamera: () -> Unit,
+    val onPlayAgain: () -> Unit,
+    val onHome: () -> Unit,
+    val onLocalFallback: () -> Unit,
 )
 
 /** Translucent HUD that leaves the middle of the screen, where the board sits, free. */
@@ -75,7 +84,21 @@ fun GameOverlay(state: GameUiState, actions: GameActions, modifier: Modifier = M
                 OnlineTopBar(online = online, opponentToMove = online.myColor != state.currentTurn)
             }
             StatusPill(state)
+            if (online != null && state.camera.status != "Camera off") {
+                val cameraError = state.camera.status.contains("denied", true) || state.camera.status.contains("unavailable", true)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = SURFACE_ALPHA),
+                    contentColor = if (cameraError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                ) {
+                    Text(state.camera.status, Modifier.padding(horizontal = 12.dp, vertical = 6.dp), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            state.cameraError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             EngineHintCard(state.engine, state.engineThinking)
+            if (state.gameMode == GameMode.COMPUTER && state.engine.engineError != null) {
+                TextButton(onClick = actions.onLocalFallback) { Text("Continue locally") }
+            }
         }
 
         Column(
@@ -166,26 +189,39 @@ private fun ActionBar(state: GameUiState, actions: GameActions) {
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
-            if (online == null) {
-                ActionButton(Icons.AutoMirrored.Filled.Undo, "Undo", actions.onUndo, enabled = state.canUndo)
-                ActionButton(Icons.Filled.RestartAlt, "Reset", actions.onReset)
+            if (gameOver && online == null) {
+                ActionButton(Icons.Filled.RestartAlt, "Play again", actions.onPlayAgain)
+                ActionButton(Icons.Filled.Home, "Home", actions.onHome)
             } else {
-                val live = online.resultText == null && !online.waitingForOpponent
-                ActionButton(Icons.Filled.Flag, "Resign", actions.onResign, enabled = live)
-                ActionButton(
-                    icon = Icons.Filled.Handshake,
-                    label = "Draw",
-                    onClick = actions.onOfferDraw,
-                    enabled = live && !online.outgoingDrawOffer,
-                )
+                if (online == null) {
+                    ActionButton(Icons.AutoMirrored.Filled.Undo, "Undo", actions.onUndo, enabled = state.canUndo)
+                    ActionButton(Icons.Filled.RestartAlt, "Reset", actions.onReset)
+                } else {
+                    val live = online.resultText == null && !online.waitingForOpponent
+                    ActionButton(Icons.Filled.Flag, "Resign", actions.onResign, enabled = live)
+                    ActionButton(
+                        icon = Icons.Filled.Handshake,
+                        label = "Draw",
+                        onClick = actions.onOfferDraw,
+                        enabled = live && !online.outgoingDrawOffer,
+                    )
+                }
+                ActionButton(Icons.Filled.CenterFocusStrong, "Reposition", actions.onReposition)
+                if (state.hintsAllowed) {
+                    ActionButton(Icons.Filled.Lightbulb, "Hint", actions.onHint, enabled = !gameOver && !state.engine.isAnalyzing)
+                }
+                ActionButton(Icons.Filled.History, "History", actions.onHistory)
+                if (online != null) {
+                    ActionButton(
+                        if (state.camera.enabled) Icons.AutoMirrored.Filled.StopScreenShare else Icons.AutoMirrored.Filled.ScreenShare,
+                        if (state.camera.enabled) "Stop sharing" else "Share view",
+                        actions.onCamera,
+                        enabled = state.camera.enabled || state.cameraError == null,
+                    )
+                }
+                ActionButton(Icons.Filled.Settings, "Settings", actions.onSettings)
+                ActionButton(Icons.Filled.Public, "Online", actions.onOnline)
             }
-            ActionButton(Icons.Filled.CenterFocusStrong, "Reposition", actions.onReposition)
-            if (state.hintsAllowed) {
-                ActionButton(Icons.Filled.Lightbulb, "Hint", actions.onHint, enabled = !gameOver && !state.engine.isAnalyzing)
-            }
-            ActionButton(Icons.Filled.History, "History", actions.onHistory)
-            ActionButton(Icons.Filled.Settings, "Settings", actions.onSettings)
-            ActionButton(Icons.Filled.Public, "Online", actions.onOnline)
         }
     }
 }

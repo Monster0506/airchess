@@ -190,15 +190,22 @@ private fun LobbyForm(
     } else {
         OutlinedTextField(
             value = code,
-            onValueChange = { code = sanitizeCode(it) },
+            onValueChange = { code = it.uppercase().take(Protocol.CODE_LENGTH) },
             label = { Text("Game code") },
             singleLine = true,
+            isError = code.isNotEmpty() && (code.length != Protocol.CODE_LENGTH || code.any { it !in Protocol.CODE_ALPHABET }),
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
             modifier = Modifier.fillMaxWidth(),
         )
+        when {
+            code.any { it !in Protocol.CODE_ALPHABET } ->
+                Text("Code contains an invalid character.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            code.isNotEmpty() && code.length != Protocol.CODE_LENGTH ->
+                Text("Enter a ${Protocol.CODE_LENGTH}-character code.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
         Button(
             onClick = { onJoin(code, name, url) },
-            enabled = canSubmit && code.length == Protocol.CODE_LENGTH,
+            enabled = canSubmit && code.length == Protocol.CODE_LENGTH && code.all { it in Protocol.CODE_ALPHABET },
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Join game") }
     }

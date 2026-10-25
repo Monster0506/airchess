@@ -11,7 +11,13 @@ private const val MAX_CLOCK_SECONDS = 24 * 3600
 private const val DEFAULT_NAME = "Player"
 
 /** Per-socket state: routes lobby messages itself and hands in-game messages to the room. */
-internal class Session(private val registry: RoomRegistry, private val conn: Connection) {
+internal class Session(
+    private val registry: RoomRegistry,
+    private val conn: Connection,
+    private val cameraConfig: suspend () -> ServerMessage.CameraConfig = {
+        ServerMessage.CameraConfig(emptyList())
+    },
+) {
     private var room: GameRoom? = null
     private var seat: Seat? = null
 
@@ -48,6 +54,7 @@ internal class Session(private val registry: RoomRegistry, private val conn: Con
         val created = registry.create(message.timeControl, message.color)
         seat = created.join(cleanName(message.name), conn)
         room = created
+        conn.send(cameraConfig())
     }
 
     private suspend fun join(message: ClientMessage.JoinGame) {
@@ -66,6 +73,7 @@ internal class Session(private val registry: RoomRegistry, private val conn: Con
         }
         seat = joined
         room = found
+        conn.send(cameraConfig())
     }
 
     private suspend fun resume(message: ClientMessage.Resume) {
@@ -84,6 +92,7 @@ internal class Session(private val registry: RoomRegistry, private val conn: Con
         }
         seat = resumed
         room = found
+        conn.send(cameraConfig())
     }
 
     private suspend fun forward(message: ClientMessage) {

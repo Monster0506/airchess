@@ -1,5 +1,12 @@
 package com.airchess.viewmodel
 
+import android.content.Context
+import com.airchess.media.LiveCameraSession
+import com.airchess.media.CameraLayout
+import com.airchess.media.CameraPhase
+import com.airchess.media.SceneCapture
+import com.airchess.protocol.CameraSignalKind
+import com.airchess.protocol.IceServer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.airchess.chess.ChessColor
@@ -15,6 +22,8 @@ import com.airchess.model.ArStatus
 import com.airchess.model.EngineUiState
 import com.airchess.model.GameSettings
 import com.airchess.model.GameUiState
+import com.airchess.model.ComputerDifficulty
+import com.airchess.model.GameMode
 import com.airchess.model.HapticKind
 import com.airchess.model.OnlineUiState
 import com.airchess.model.PendingPromotion
@@ -82,6 +91,7 @@ class ChessViewModel(
     defaultServerUrl: String = FALLBACK_SERVER_URL,
     private val engineDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val now: () -> Long = { System.nanoTime() / NANOS_PER_MILLI },
+    private val cameraContext: Context? = null,
 ) : ViewModel() {
 
     private val game = ChessGame()
@@ -93,7 +103,10 @@ class ChessViewModel(
             serverUrl = prefs?.serverUrl ?: defaultServerUrl,
             onboardingComplete = prefs?.onboardingComplete == true,
             prefer3d = prefs?.prefer3d == true,
-            gameMode = prefs?.savedMode?.ifEmpty { "local" } ?: "local",
+            gameMode = GameMode.fromStored(prefs?.savedMode),
+            hasLocalGame = prefs?.savedMode?.let { it == GameMode.LOCAL.key || it == GameMode.COMPUTER.key } == true,
+            computerSide = prefs?.savedComputerSide?.let { runCatching { ChessColor.valueOf(it) }.getOrNull() } ?: ChessColor.WHITE,
+            computerDifficulty = prefs?.savedComputerDifficulty?.let { runCatching { ComputerDifficulty.valueOf(it) }.getOrNull() } ?: ComputerDifficulty.MEDIUM,
         ),
     )
     private val mutableEvents = MutableSharedFlow<UiEvent>(extraBufferCapacity = EVENT_BUFFER)
@@ -112,6 +125,9 @@ class ChessViewModel(
     private var sessionCode: String? = null
     private var token: String? = null
     private var clockAnchor: ClockAnchor? = null
+    val sceneCapture = SceneCapture()
+    private var cameraSession: LiveCameraSession? = null
+    private var iceServers: List<IceServer> = emptyList()
 
     init {
         restoreLocalGame()
@@ -142,38 +158,54 @@ class ChessViewModel(
     }
 
     fun handleDeepLink(code: String) {
-        if (!mutableState.value.onboardingComplete) {
-            mutate { it.copy(deepLinkCode = code) }
-            return
-        }
+        mutate { it.copy(deepLinkCode = code) }
+    }
+
+    fun continueDeepLink() {
+        val code = mutableState.value.deepLinkCode ?: return
+        mutate { it.copy(deepLinkCode = null) }
         joinOnlineGame(code, mutableState.value.playerName, mutableState.value.serverUrl)
+    }
+
+    fun dismissDeepLink() {
+        mutate { it.copy(deepLinkCode = null) }
     }
 
     fun completeOnboarding(name: String) {
         val clean = name.trim().ifEmpty { "Player" }
         prefs?.playerName = clean
         prefs?.onboardingComplete = true
-        val code = mutableState.value.deepLinkCode
-        mutate { it.copy(playerName = clean, onboardingComplete = true, deepLinkCode = null) }
-        if (code != null) {
-            joinOnlineGame(code, clean, mutableState.value.serverUrl)
-        }
-    }
-    fun startLocal(mode: String = "local") {
-        closeSession()
-        game.reset()
-        prefs?.savedMode = mode
-        prefs?.savedMoves = ""
-        mutate { it.copy(online = null, gameMode = mode, engine = EngineUiState(), engineThinking = false) }
+        mutate { it.copy(playerName = clean, onboardingComplete = true) }
     }
 
+
     fun resumeLocal() {
-        restoreLocalGame()
-        mutate { it.copy(online = null) }
+        positionChanged()
+        val current = mutableState.value
+        if (current.gameMode == GameMode.COMPUTER && game.currentTurn != current.computerSide && !game.gameStatus.isGameOver) {
+            playComputerMove()
+        }
+    }
+
+    fun pauseGame() {
+        positionChanged()
+        stopCamera()
+        persistLocalGame()
+    }
+
+    fun playLocally() {
+        closeSession()
+        mutate { it.copy(online = null, gameMode = GameMode.LOCAL, hasLocalGame = true) }
+        positionChanged()
+        persistLocalGame()
     }
 
     private fun restoreLocalGame() {
         game.reset()
+        val mode = GameMode.fromStored(prefs?.savedMode)
+        if (mode == GameMode.ONLINE) {
+            return
+        }
         val moves = prefs?.savedMoves.orEmpty().split(',').filter(String::isNotBlank)
         for (uci in moves) {
             val move = game.findMoveByUci(uci) ?: return
@@ -190,30 +222,39 @@ class ChessViewModel(
         client = session
         sessionCode = code
         token = key
-        mutate { it.copy(online = OnlineUiState(code = code, myName = it.playerName), gameMode = "online") }
-        sessionJob = viewModelScope.launch {
-            if (!tryConnect(session, url)) {
-                mutate { it.copy(online = it.online?.copy(lastError = "Could not connect to the server")) }
-                return@launch
-            }
-            session.send(ClientMessage.Resume(code, key))
-            holdReconnect(session, url)
-        }
+        game.reset()
+        mutate { it.copy(online = OnlineUiState(code = code, myName = it.playerName), gameMode = GameMode.ONLINE, hasLocalGame = false) }
+        sessionJob = viewModelScope.launch { runSession(session, url, ClientMessage.Resume(code, key)) }
     }
 
-    private suspend fun holdReconnect(session: OnlineGameClient, url: String) {
-        while (true) {
-            session.state.first { it == ConnectionState.DISCONNECTED }
-            reconnect(session, url)
-        }
-    }
 
-    fun openGame(mode: String) {
+    fun openGame(mode: GameMode) {
+        require(mode != GameMode.ONLINE)
         closeSession()
         game.reset()
-        prefs?.savedMode = mode
-        prefs?.savedMoves = ""
-        mutate { it.copy(online = null, gameMode = mode, engineThinking = false, engine = EngineUiState()) }
+        mutate {
+            it.copy(
+                online = null,
+                gameMode = mode,
+                hasLocalGame = true,
+                board = it.board.copy(perspective = if (mode == GameMode.COMPUTER) it.computerSide else ChessColor.WHITE),
+            )
+        }
+        positionChanged()
+        persistLocalGame()
+        if (mode == GameMode.COMPUTER && mutableState.value.computerSide == ChessColor.BLACK) {
+            playComputerMove()
+        }
+    }
+
+    fun startComputerGame(colorChoice: ColorChoice, difficulty: ComputerDifficulty) {
+        val humanColor = when (colorChoice) {
+            ColorChoice.WHITE -> ChessColor.WHITE
+            ColorChoice.BLACK -> ChessColor.BLACK
+            ColorChoice.RANDOM -> if (kotlin.random.Random.nextBoolean()) ChessColor.WHITE else ChessColor.BLACK
+        }
+        mutate { it.copy(computerSide = humanColor, computerDifficulty = difficulty) }
+        openGame(GameMode.COMPUTER)
     }
 
     fun onSquareTapped(square: ChessSquare) {
@@ -263,13 +304,19 @@ class ChessViewModel(
         if (mutableState.value.online != null) {
             return
         }
-        if (mutableState.value.gameMode == "computer" && game.moveHistory.size >= 2) {
-            game.undoMove()
-            game.undoMove()
-        } else if (!game.undoMove()) {
+        if (!game.undoMove()) {
             return
         }
+        val mode = mutableState.value
+        if (mode.gameMode == GameMode.COMPUTER && game.currentTurn != mode.computerSide && game.moveHistory.isNotEmpty()) {
+            game.undoMove()
+        }
         positionChanged()
+        persistLocalGame()
+        val current = mutableState.value
+        if (current.gameMode == GameMode.COMPUTER && game.currentTurn != current.computerSide && !game.gameStatus.isGameOver) {
+            playComputerMove()
+        }
     }
 
     fun reset() {
@@ -278,7 +325,12 @@ class ChessViewModel(
         }
         game.reset()
         positionChanged()
+        persistLocalGame()
+        if (mutableState.value.gameMode == GameMode.COMPUTER && mutableState.value.computerSide == ChessColor.BLACK) {
+            playComputerMove()
+        }
     }
+    fun playAgain() = reset()
 
     fun reposition() {
         mutate { it.copy(repositionToken = it.repositionToken + 1) }
@@ -294,7 +346,7 @@ class ChessViewModel(
     }
 
     fun requestHint() {
-        if (game.gameStatus.isGameOver || !mutableState.value.hintsAllowed) {
+        if (game.gameStatus.isGameOver || !mutableState.value.hintsAllowed || mutableState.value.engineThinking) {
             return
         }
         analysisJob?.cancel()
@@ -320,7 +372,12 @@ class ChessViewModel(
     }
 
     fun joinOnlineGame(code: String, name: String, serverUrl: String) {
-        startOnline(name, serverUrl) { ClientMessage.JoinGame(code.trim().uppercase(), it) }
+        val normalized = code.trim().uppercase()
+        if (normalized.length != Protocol.CODE_LENGTH || normalized.any { it !in Protocol.CODE_ALPHABET }) {
+            mutate { it.copy(lobbyError = "Enter a valid ${Protocol.CODE_LENGTH}-character game code.") }
+            return
+        }
+        startOnline(name, serverUrl) { ClientMessage.JoinGame(normalized, it) }
     }
 
     fun leaveOnlineGame() {
@@ -329,12 +386,17 @@ class ChessViewModel(
         }
         prefs?.savedOnlineCode = ""
         prefs?.savedOnlineToken = ""
+        prefs?.savedMode = ""
+        prefs?.savedMoves = ""
+        cameraSession?.stop()
         client?.send(ClientMessage.Leave)
         closeSession()
         game.reset()
         mutate {
             it.copy(
                 online = null,
+                gameMode = GameMode.LOCAL,
+                hasLocalGame = false,
                 board = it.board.copy(hint = null, perspective = ChessColor.WHITE),
                 engine = EngineUiState(),
                 pendingPromotion = null,
@@ -362,8 +424,73 @@ class ChessViewModel(
         sendOnline(ClientMessage.RespondRematch(accept))
     }
 
+    fun startCamera() {
+        val current = mutableState.value
+        if (!current.isOnlineGame || current.cameraError != null || current.camera.enabled) { return }
+        if (iceServers.isEmpty()) {
+            setCameraStatus("Waiting for view-sharing configuration")
+            return
+        }
+        if (!sceneCapture.isReady) {
+            setCameraStatus("Open the AR or 3D board before sharing")
+            return
+        }
+        val context = cameraContext
+        val side = current.online?.mySide
+        if (context == null || side == null) {
+            setCameraStatus("View sharing is unavailable")
+            return
+        }
+        val camera = try {
+            cameraSession ?: LiveCameraSession(context).also { cameraSession = it }
+        } catch (_: Exception) {
+            setCameraStatus("View sharing unavailable")
+            return
+        }
+        mutate { it.copy(camera = it.camera.copy(enabled = true, status = "Starting view sharing")) }
+        camera.start(
+            servers = iceServers,
+            side = side,
+            scene = sceneCapture,
+            signal = { kind, payload -> client?.send(ClientMessage.CameraSignal(kind, payload)) },
+            status = { phase, status ->
+                mutableState.update {
+                    it.copy(camera = it.camera.copy(enabled = phase != CameraPhase.OFF && phase != CameraPhase.ERROR, status = status))
+                }
+            },
+        )
+    }
+
+    fun stopCamera() {
+        cameraSession?.stop()
+        mutate { it.copy(camera = it.camera.copy(enabled = false, status = "Camera off")) }
+    }
+
+    fun receiveCameraSignal(kind: CameraSignalKind, payload: String) {
+        cameraSession?.receive(kind, payload)
+        if (kind == CameraSignalKind.STOP) {
+            mutate { it.copy(camera = it.camera.copy(enabled = false, status = "Camera off")) }
+        }
+    }
+
+    fun createCameraView(context: Context, layout: CameraLayout, onSwap: () -> Unit): android.view.View? =
+        cameraSession?.createView(context, layout, onSwap)
+
+    fun updateCameraView(view: android.view.View, layout: CameraLayout) {
+        cameraSession?.updateView(view, layout)
+    }
+
+    fun releaseCameraView(view: android.view.View) {
+        cameraSession?.releaseView(view)
+    }
+
+    private fun setCameraStatus(status: String) {
+        mutableState.update { it.copy(camera = it.camera.copy(status = status)) }
+    }
+
     override fun onCleared() {
         engine?.close()
+        cameraSession?.close()
         client?.close()
     }
 
@@ -401,12 +528,15 @@ class ChessViewModel(
             gameStatus = status,
             statusText = statusText,
             moveHistory = history,
-            canUndo = history.isNotEmpty() && online == null,
+            canUndo = online == null && history.any {
+                base.gameMode != GameMode.COMPUTER || it.move.piece.color == base.computerSide
+            },
         )
     }
 
     private fun canInteract(current: GameUiState): Boolean {
-        val online = current.online ?: return true
+        val online = current.online ?: return current.gameMode != GameMode.COMPUTER ||
+            (!current.engineThinking && game.currentTurn == current.computerSide)
         return online.code != null &&
             online.connection == ConnectionState.CONNECTED &&
             online.resultText == null &&
@@ -428,7 +558,8 @@ class ChessViewModel(
             return
         }
         persistLocalGame()
-        if (mutableState.value.gameMode == "computer" && !game.gameStatus.isGameOver) {
+        val afterMove = mutableState.value
+        if (afterMove.gameMode == GameMode.COMPUTER && game.currentTurn != afterMove.computerSide && !game.gameStatus.isGameOver) {
             playComputerMove()
         }
     }
@@ -437,8 +568,10 @@ class ChessViewModel(
         if (mutableState.value.online != null) {
             return
         }
-        prefs?.savedMode = mutableState.value.gameMode
+        prefs?.savedMode = mutableState.value.gameMode.key
         prefs?.savedMoves = game.moveHistory.joinToString(",") { it.move.uci }
+        prefs?.savedComputerSide = mutableState.value.computerSide.name
+        prefs?.savedComputerDifficulty = mutableState.value.computerDifficulty.name
     }
 
     private fun positionChanged() {
@@ -455,13 +588,18 @@ class ChessViewModel(
     }
 
     private fun playComputerMove() {
+        val computer = mutableState.value
+        if (computer.gameMode != GameMode.COMPUTER || game.currentTurn == computer.computerSide || game.gameStatus.isGameOver) {
+            return
+        }
         val fen = game.exportFen()
+        val depth = computer.computerDifficulty.depth
         mutate { it.copy(engineThinking = true, engine = EngineUiState(isAnalyzing = true)) }
         analysisJob?.cancel()
         analysisJob = viewModelScope.launch {
             try {
                 val answer = withContext(engineDispatcher) {
-                    obtainEngine().analyze(fen, mutableState.value.settings.engineDepth)
+                    obtainEngine().analyze(fen, depth)
                 }
                 if (game.exportFen() != fen) {
                     return@launch
@@ -542,6 +680,13 @@ class ChessViewModel(
     }
 
     private fun closeSession() {
+        analysisJob?.cancel()
+        analysisJob = null
+        cameraSession?.stop()
+        mutableState.update {
+            it.copy(camera = it.camera.copy(enabled = false, status = "Camera off"), cameraError = null)
+        }
+        iceServers = emptyList()
         sessionJob?.cancel()
         tickerJob?.cancel()
         client?.close()
@@ -573,11 +718,15 @@ class ChessViewModel(
 
     private suspend fun holdSession(session: OnlineGameClient, url: String, opening: ClientMessage) {
         if (!tryConnect(session, url)) {
-            failLobby("Could not connect to the server")
-            return
+            if (token == null) {
+                failLobby("Could not connect to the server")
+                return
+            }
+            reconnect(session, url)
+        } else {
+            setConnection(ConnectionState.CONNECTED)
+            session.send(opening)
         }
-        setConnection(ConnectionState.CONNECTED)
-        session.send(opening)
 
         while (true) {
             session.state.first { it == ConnectionState.DISCONNECTED }
@@ -618,6 +767,9 @@ class ChessViewModel(
         }
 
     private fun setConnection(connection: ConnectionState) {
+        if (connection == ConnectionState.RECONNECTING || connection == ConnectionState.DISCONNECTED) {
+            stopCamera()
+        }
         mutableState.update { s -> s.online?.let { s.copy(online = it.copy(connection = connection)) } ?: s }
     }
 
@@ -638,19 +790,34 @@ class ChessViewModel(
                 emitMessage(rejectionText(message.reason))
             }
             is ServerMessage.Error -> onServerError(message)
+            is ServerMessage.CameraConfig -> {
+                iceServers = message.iceServers
+                mutableState.update { it.copy(cameraError = message.relayError) }
+                message.relayError?.let { relayError ->
+                    cameraSession?.stop()
+                    mutate { it.copy(camera = it.camera.copy(enabled = false, status = relayError)) }
+                    emitMessage(relayError)
+                }
+            }
+            is ServerMessage.CameraSignal -> receiveCameraSignal(message.kind, message.payload)
             ServerMessage.Pong -> Unit
         }
     }
 
     private fun onJoined(joined: ServerMessage.Joined) {
+        stopCamera()
+        iceServers = emptyList()
         token = joined.token
         sessionCode = joined.code
         prefs?.savedOnlineCode = joined.code
         prefs?.savedOnlineToken = joined.token
-        prefs?.savedMode = "online"
+        prefs?.savedMode = GameMode.ONLINE.key
+        prefs?.savedMoves = ""
         mutate {
             it.copy(
                 board = it.board.copy(perspective = joined.side.toColor()),
+                gameMode = GameMode.ONLINE,
+                hasLocalGame = false,
                 online = (it.online ?: OnlineUiState()).copy(code = joined.code, mySide = joined.side),
             )
         }
@@ -667,8 +834,20 @@ class ChessViewModel(
         emitMessage(error.message)
         if (error.code == ErrorCode.GAME_NOT_FOUND || error.code == ErrorCode.INVALID_TOKEN) {
             closeSession()
+            prefs?.savedOnlineCode = ""
+            prefs?.savedOnlineToken = ""
+            prefs?.savedMode = ""
+            prefs?.savedMoves = ""
             game.reset()
-            mutate { it.copy(online = null, board = it.board.copy(hint = null, perspective = ChessColor.WHITE)) }
+            mutate {
+                it.copy(
+                    online = null,
+                    gameMode = GameMode.LOCAL,
+                    hasLocalGame = false,
+                    lobbyError = error.message,
+                    board = it.board.copy(hint = null, perspective = ChessColor.WHITE),
+                )
+            }
         }
     }
 
@@ -722,12 +901,15 @@ class ChessViewModel(
         }
         restartTicker()
 
+        if (snapshot.result != null) {
+            prefs?.savedOnlineCode = ""
+            prefs?.savedOnlineToken = ""
+        }
+
         if (sync == Sync.APPENDED) {
             moveHaptic()
         } else if (previousResult == null && snapshot.result != null) {
             haptic(HapticKind.GAME_OVER)
-            prefs?.savedOnlineCode = ""
-            prefs?.savedOnlineToken = ""
         }
     }
 

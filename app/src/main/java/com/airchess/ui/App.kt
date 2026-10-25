@@ -1,6 +1,8 @@
 package com.airchess.ui
 
 import android.os.Build
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airchess.ar.ArGate
 import com.airchess.chess.Fen
+import com.airchess.model.GameMode
 import com.airchess.model.HapticKind
 import com.airchess.model.UiEvent
 import com.airchess.viewmodel.ChessViewModel
@@ -44,6 +47,13 @@ private enum class Sheet {
     SETTINGS,
     HISTORY,
     ONLINE,
+}
+
+private enum class Screen {
+    ONBOARDING,
+    HOME,
+    GAME,
+    LOBBY,
 }
 
 @Composable
@@ -68,11 +78,14 @@ fun App(viewModel: ChessViewModel) {
 
 @Composable
 private fun AppContent(viewModel: ChessViewModel) {
+    var cameraStage by rememberSaveable { mutableStateOf(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { viewModel.stopCamera(); cameraStage = false }
     val state by viewModel.state.collectAsStateWithLifecycle()
     var sheet by rememberSaveable { mutableStateOf(Sheet.NONE) }
-    var screen by rememberSaveable { mutableStateOf(if (state.onboardingComplete) "home" else "onboarding") }
+    var screen by rememberSaveable { mutableStateOf(if (state.onboardingComplete) Screen.HOME else Screen.ONBOARDING) }
     var confirmResign by rememberSaveable { mutableStateOf(false) }
     var confirmLeave by rememberSaveable { mutableStateOf(false) }
+    var confirmDeepLink by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
@@ -94,52 +107,67 @@ private fun AppContent(viewModel: ChessViewModel) {
 
     LaunchedEffect(state.online?.code, state.online?.waitingForOpponent) {
         val online = state.online
-        if (online?.code != null && !online.waitingForOpponent) {
-            screen = "game"
-            sheet = Sheet.NONE
+        if (online == null) {
+            if (screen == Screen.LOBBY || state.lobbyError != null) {
+                screen = Screen.HOME
+                sheet = Sheet.ONLINE
+            }
+            return@LaunchedEffect
+        }
+        val waiting = online.code == null || online.waitingForOpponent
+        screen = if (waiting) Screen.LOBBY else Screen.GAME
+        sheet = if (waiting) Sheet.ONLINE else Sheet.NONE
+    }
+    LaunchedEffect(state.deepLinkCode, state.onboardingComplete, screen) {
+        if (state.deepLinkCode != null && state.onboardingComplete) {
+            if (screen == Screen.GAME || screen == Screen.LOBBY || state.online != null) {
+                confirmDeepLink = true
+            } else {
+                viewModel.continueDeepLink()
+                screen = Screen.LOBBY
+                sheet = Sheet.ONLINE
+            }
         }
     }
-    LaunchedEffect(state.online) {
-        val online = state.online
-        if (online != null) {
-            screen = if (online.code != null && !online.waitingForOpponent) "game" else "lobby"
-            sheet = if (online.code == null || online.waitingForOpponent) Sheet.ONLINE else Sheet.NONE
-        }
+    LaunchedEffect(state.camera.enabled) {
+        if (!state.camera.enabled) cameraStage = false
     }
 
-    androidx.activity.compose.BackHandler(screen == "game" || screen == "lobby") {
+    androidx.activity.compose.BackHandler(cameraStage) { cameraStage = false }
+    androidx.activity.compose.BackHandler(!cameraStage && (screen == Screen.GAME || screen == Screen.LOBBY)) {
         if (state.online?.resultText != null) {
             viewModel.leaveOnlineGame()
-            screen = "home"
+            screen = Screen.HOME
         } else if (state.online != null) {
             confirmLeave = true
         } else {
-            screen = "home"
+            viewModel.pauseGame()
+            screen = Screen.HOME
         }
     }
 
     if (!state.onboardingComplete) {
         Onboarding(state.playerName) {
             viewModel.completeOnboarding(it)
-            screen = "home"
+            screen = Screen.HOME
         }
         return
     }
 
-    if (screen == "home") {
+    if (screen == Screen.HOME) {
         Box(Modifier.fillMaxSize()) {
             HomeScreen(
                 onOnline = { sheet = Sheet.ONLINE },
                 state = state,
-                onLocal = { viewModel.openGame("local"); screen = "game" },
-                onComputer = { viewModel.openGame("computer"); screen = "game" },
+                onLocal = { viewModel.openGame(GameMode.LOCAL); screen = Screen.GAME },
+                onComputer = { color, difficulty -> viewModel.startComputerGame(color, difficulty); screen = Screen.GAME },
                 onResume = {
                     val online = state.online
                     if (online != null) {
-                        screen = if (online.waitingForOpponent) "lobby" else "game"
+                        screen = if (online.waitingForOpponent) Screen.LOBBY else Screen.GAME
                     } else {
                         viewModel.resumeLocal()
-                        screen = "game"
+                        screen = Screen.GAME
                     }
                 },
                 onSettings = { sheet = Sheet.SETTINGS },
@@ -161,7 +189,25 @@ private fun AppContent(viewModel: ChessViewModel) {
                 onRespondDraw = viewModel::respondDraw,
                 onOfferRematch = viewModel::offerRematch,
                 onRespondRematch = viewModel::respondRematch,
-                onLeave = { confirmLeave = true },
+                onLeave = {
+                    if (state.online?.resultText != null) {
+                        viewModel.leaveOnlineGame()
+                        screen = Screen.HOME
+                    } else {
+                        confirmLeave = true
+                    }
+                },
+                onCamera = {
+                    if (state.camera.enabled) {
+                        viewModel.stopCamera()
+                        cameraStage = false
+                    } else {
+                        viewModel.startCamera()
+                    }
+                },
+                onPlayAgain = viewModel::playAgain,
+                onHome = { viewModel.pauseGame(); screen = Screen.HOME },
+                onLocalFallback = viewModel::playLocally,
             )
         }
         Box(Modifier.fillMaxSize()) {
@@ -170,12 +216,18 @@ private fun AppContent(viewModel: ChessViewModel) {
                 repositionToken = state.repositionToken,
                 onSquareTapped = viewModel::onSquareTapped,
                 onStatusChanged = viewModel::onArStatus,
+                capture = viewModel.sceneCapture,
                 prefer3d = state.prefer3d,
                 onPrefer3d = { viewModel.setPrefer3d(true) },
                 modifier = Modifier.fillMaxSize(),
             )
-            GameOverlay(state = state, actions = actions)
-            if (state.settings.showDebug) {
+            if (cameraStage && state.camera.enabled) {
+                CameraVideoStage(state, viewModel, { cameraStage = false }, { cameraStage = false }, viewModel::stopCamera)
+            } else if (state.camera.enabled) {
+                CameraBoardPreview(state, viewModel, { cameraStage = true }, Modifier.align(Alignment.TopEnd))
+            }
+            if (!cameraStage) { GameOverlay(state = state, actions = actions) }
+            if (!cameraStage && state.settings.showDebug) {
                 val fen = remember(state.board.position) { Fen.export(state.board.position) }
                 DebugOverlay(
                     status = state.arStatus,
@@ -198,17 +250,38 @@ private fun AppContent(viewModel: ChessViewModel) {
         AlertDialog(
             onDismissRequest = { confirmLeave = false },
             title = { Text("Leave this game?") },
-            text = { Text("Leaving an online game forfeits after 60 seconds. You can resign now instead.") },
+            text = { Text("Leaving an online game immediately forfeits the game. Are you sure you want to leave?") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmLeave = false
                     viewModel.leaveOnlineGame()
-                    screen = "home"
+                    cameraStage = false
+                    screen = Screen.HOME
                 }) { Text("Leave") }
             },
-            dismissButton = {
-                TextButton(onClick = { confirmLeave = false; if (state.online != null) viewModel.resign() }) { Text("Resign") }
+            dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("Keep playing") } },
+        )
+    }
+    if (confirmDeepLink && state.deepLinkCode != null) {
+        AlertDialog(
+            onDismissRequest = { confirmDeepLink = false; viewModel.dismissDeepLink() },
+            title = { Text("Join this game?") },
+            text = {
+                Text(
+                    if (state.online != null) "Leaving your online game immediately forfeits it. Continue to join code ${state.deepLinkCode}?"
+                    else "Leave your current game and join code ${state.deepLinkCode}?",
+                )
             },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDeepLink = false
+                    if (state.online != null) viewModel.leaveOnlineGame()
+                    viewModel.continueDeepLink()
+                    screen = Screen.LOBBY
+                    sheet = Sheet.ONLINE
+                }) { Text("Join game") }
+            },
+            dismissButton = { TextButton(onClick = { confirmDeepLink = false; viewModel.dismissDeepLink() }) { Text("Keep playing") } },
         )
     }
 
@@ -228,20 +301,14 @@ private fun AppContent(viewModel: ChessViewModel) {
         Sheet.HISTORY -> MoveHistorySheet(state.moveHistory) { sheet = Sheet.NONE }
         Sheet.ONLINE -> PlayOnlineSheet(
             state = state,
-            onCreate = { name, url, control, color ->
-                viewModel.createOnlineGame(name, url, control, color)
-                screen = "lobby"
-            },
-            onJoin = { code, name, url ->
-                viewModel.joinOnlineGame(code, name, url)
-                screen = "lobby"
-            },
+            onCreate = viewModel::createOnlineGame,
+            onJoin = viewModel::joinOnlineGame,
             onLeave = {
                 if (state.online?.code != null) {
                     confirmLeave = true
                 } else {
                     viewModel.leaveOnlineGame()
-                    screen = "home"
+                    screen = Screen.HOME
                     sheet = Sheet.NONE
                 }
             },

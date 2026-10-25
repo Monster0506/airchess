@@ -1,5 +1,6 @@
 package com.airchess.server
 
+import com.airchess.protocol.CameraSignalKind
 import com.airchess.protocol.ClientMessage
 import com.airchess.protocol.ErrorCode
 import com.airchess.protocol.GameResult
@@ -18,10 +19,12 @@ import kotlinx.coroutines.sync.withLock
 
 internal const val ABANDON_GRACE_MS = 60_000L
 private const val MILLIS_PER_SECOND = 1_000L
+private const val MAX_CAMERA_PAYLOAD = 48 * 1024
 
 internal class Seat(val name: String, val token: String, var side: Side) {
     var connection: Connection? = null
     var graceJob: Job? = null
+    var cameraReady = false
 }
 
 /**
@@ -91,6 +94,7 @@ internal class GameRoom(
             return@withLock
         }
         detach(seat)
+        stopCamera(seat)
         broadcast()
     }
 
@@ -107,6 +111,7 @@ internal class GameRoom(
             ClientMessage.OfferRematch -> offerRematch(seat)
             is ClientMessage.RespondRematch -> respondRematch(seat, message.accept)
             ClientMessage.Leave -> leave(seat)
+            is ClientMessage.CameraSignal -> signalCamera(seat, message)
             else -> seat.fail(ErrorCode.BAD_REQUEST, "Already in a game")
         }
     }
@@ -118,6 +123,43 @@ internal class GameRoom(
     suspend fun close() = lock.withLock {
         flagJob?.cancel()
         seats.forEach { it.graceJob?.cancel() }
+    }
+
+    private suspend fun signalCamera(seat: Seat, signal: ClientMessage.CameraSignal) {
+        if (signal.payload.length > MAX_CAMERA_PAYLOAD) {
+            seat.fail(ErrorCode.BAD_REQUEST, "Camera signal too large")
+            return
+        }
+        val other = seats.firstOrNull { it !== seat }
+        when (signal.kind) {
+            CameraSignalKind.STOP -> {
+                stopCamera(seat)
+                return
+            }
+            CameraSignalKind.READY -> {
+                seat.cameraReady = true
+                if (other?.cameraReady == true) {
+                    seat.send(ServerMessage.CameraSignal(CameraSignalKind.READY))
+                }
+            }
+            else -> {
+                if (!seat.cameraReady || other?.cameraReady != true) {
+                    seat.fail(ErrorCode.BAD_REQUEST, "Both players must enable their cameras")
+                    return
+                }
+            }
+        }
+        other?.send(ServerMessage.CameraSignal(signal.kind, signal.payload))
+    }
+
+    private suspend fun stopCamera(seat: Seat) {
+        val other = seats.firstOrNull { it !== seat }
+        if (!seat.cameraReady && other?.cameraReady != true) {
+            return
+        }
+        seat.cameraReady = false
+        other?.cameraReady = false
+        other?.send(ServerMessage.CameraSignal(CameraSignalKind.STOP))
     }
 
     private suspend fun move(seat: Seat, message: ClientMessage.MakeMove) {
@@ -167,6 +209,7 @@ internal class GameRoom(
     }
 
     private suspend fun leave(seat: Seat) {
+        stopCamera(seat)
         if (inProgress) {
             finish(GameResult(seat.side.opposite, ResultReason.ABANDONED))
         }
@@ -241,7 +284,10 @@ internal class GameRoom(
         return false
     }
 
-    private fun attach(seat: Seat, conn: Connection) {
+    private suspend fun attach(seat: Seat, conn: Connection) {
+        if (seat.connection != null) {
+            stopCamera(seat)
+        }
         seat.connection = conn
         seat.graceJob?.cancel()
         touch()

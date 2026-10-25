@@ -1,6 +1,8 @@
 package com.airchess.viewmodel
 
 import com.airchess.chess.ChessSquare
+import com.airchess.data.Prefs
+import com.airchess.model.GameSettings
 import com.airchess.engine.ChessEngine
 import com.airchess.engine.EngineAnalysis
 import com.airchess.engine.EngineScore
@@ -26,10 +28,12 @@ class FakeEngine(
     var failure: Exception? = null,
 ) : ChessEngine {
     val fens = mutableListOf<String>()
+    val depths = mutableListOf<Int>()
     var closed = false
 
     override suspend fun analyze(fen: String, depth: Int): EngineAnalysis {
         fens += fen
+        depths += depth
         failure?.let { throw it }
         return EngineAnalysis(bestMove, score, listOfNotNull(bestMove), depth)
     }
@@ -37,6 +41,20 @@ class FakeEngine(
     override fun close() {
         closed = true
     }
+}
+
+class FakePrefs : Prefs {
+    override var playerName = "Player"
+    override var serverUrl = "ws://localhost:8080/ws"
+    override var settings = GameSettings()
+    override var onboardingComplete = true
+    override var prefer3d = false
+    override var savedMoves = ""
+    override var savedMode = ""
+    override var savedComputerSide = "WHITE"
+    override var savedComputerDifficulty = "MEDIUM"
+    override var savedOnlineCode = ""
+    override var savedOnlineToken = ""
 }
 
 class FakeClient : OnlineGameClient {

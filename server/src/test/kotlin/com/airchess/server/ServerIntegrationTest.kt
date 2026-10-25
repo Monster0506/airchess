@@ -1,5 +1,6 @@
 package com.airchess.server
 
+import com.airchess.protocol.CameraSignalKind
 import com.airchess.protocol.ClientMessage
 import com.airchess.protocol.ColorChoice
 import com.airchess.protocol.ErrorCode
@@ -33,8 +34,17 @@ private class Player(private val ws: DefaultClientWebSocketSession) {
 
     suspend fun sendRaw(text: String) = ws.send(Frame.Text(text))
 
-    suspend fun next(): ServerMessage = withTimeout(RECEIVE_TIMEOUT_MS) {
+    suspend fun nextRaw(): ServerMessage = withTimeout(RECEIVE_TIMEOUT_MS) {
         Protocol.decodeServer((ws.incoming.receive() as Frame.Text).readText())
+    }
+
+    suspend fun next(): ServerMessage {
+        while (true) {
+            val message = nextRaw()
+            if (message !is ServerMessage.CameraConfig) {
+                return message
+            }
+        }
     }
 
     suspend fun until(accept: (ServerMessage) -> Boolean): ServerMessage {
@@ -86,6 +96,27 @@ class ServerIntegrationTest {
     fun `root answers with room count`() = serverTest {
         val text = client.get("/").bodyAsText()
         assertTrue(text.startsWith("AirChess server OK"), text)
+    }
+
+    @Test
+    fun `camera signals stay within the authenticated room`() = serverTest {
+        val (white, black, _) = seatedPair()
+        val outsider = connect()
+        outsider.send(ClientMessage.CameraSignal(CameraSignalKind.READY))
+        assertEquals(ErrorCode.NOT_IN_GAME, assertIs<ServerMessage.Error>(outsider.next()).code)
+        outsider.send(ClientMessage.CreateGame("Other room", TimeControl.BLITZ_5_0, ColorChoice.WHITE))
+        assertIs<ServerMessage.Joined>(outsider.next())
+        outsider.send(ClientMessage.CameraSignal(CameraSignalKind.READY))
+
+        white.send(ClientMessage.CameraSignal(CameraSignalKind.READY))
+        assertIs<ServerMessage.CameraSignal>(black.next())
+        black.send(ClientMessage.CameraSignal(CameraSignalKind.READY))
+        assertIs<ServerMessage.CameraSignal>(white.next())
+        assertIs<ServerMessage.CameraSignal>(black.next())
+        white.send(ClientMessage.CameraSignal(CameraSignalKind.OFFER, "sdp"))
+        assertEquals("sdp", assertIs<ServerMessage.CameraSignal>(black.next()).payload)
+        outsider.send(ClientMessage.Ping)
+        assertEquals(ServerMessage.Pong, outsider.next())
     }
 
     @Test

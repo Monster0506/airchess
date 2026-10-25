@@ -41,6 +41,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.airchess.R
 import com.airchess.chess.ChessSquare
+import com.airchess.media.SceneCapture
 import com.airchess.model.ArStatus
 import com.airchess.model.BoardViewState
 import com.google.ar.core.ArCoreApk
@@ -61,6 +62,7 @@ fun ArGate(
     repositionToken: Int,
     onSquareTapped: (ChessSquare) -> Unit,
     onStatusChanged: (ArStatus) -> Unit,
+    capture: SceneCapture,
     modifier: Modifier = Modifier,
     prefer3d: Boolean = false,
     onPrefer3d: () -> Unit = {},
@@ -94,10 +96,11 @@ fun ArGate(
                 repositionToken = repositionToken,
                 onSquareTapped = onSquareTapped,
                 onStatusChanged = onStatusChanged,
+                capture = capture,
                 modifier = Modifier.fillMaxSize(),
                 onSessionFailed = { sessionError = it },
             )
-            ArGateScreen.BOARD_3D -> Board3DScreen(board, onSquareTapped, Modifier.fillMaxSize())
+            ArGateScreen.BOARD_3D -> Board3DScreen(board, onSquareTapped, capture, Modifier.fillMaxSize())
             ArGateScreen.CHECKING -> GateCard(
                 title = stringResource(R.string.ar_gate_checking),
                 busy = true,

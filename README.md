@@ -18,7 +18,7 @@ Stuck? Tap **Hint**. A world-class engine reads the position and draws its best 
 
 ## Challenge a friend, anywhere
 
-Create a game and share a six-character code. Your friend joins from their own phone, places their own board on their own table, and you play live, each from your own side of the board. Pick a time control, watch the clocks tick down, offer a draw, resign with dignity, or demand a rematch.
+Create a game and share a six-character code. Your friend joins from their own phone, places their own board on their own table, and you play live, each from your own side of the board. Pick a time control, watch the clocks tick down, offer a draw, resign with dignity, or demand a rematch. Tap **Share view** and you each see the other's board, AR camera and pieces included, in a corner preview; tap it to go full screen.
 
 ## Built for the moment
 
@@ -26,6 +26,9 @@ Create a game and share a six-character code. Your friend joins from their own p
 - Mistakes forgiven: undo and reset in casual play.
 - Full move history at a glance.
 - No AR on your phone? Play the same board in 3D.
+- Play the computer: choose a side and difficulty. Stockfish answers your moves.
+- Leave mid-game and pick it up later from **Resume game**.
+- No app? Play in the browser at `/play/`, in 2D or 3D, against a friend on the app.
 
 **AirChess. Chess, wherever you are.**
 
@@ -45,11 +48,15 @@ The default server URL is `ws://localhost:8080/ws`, which reaches a server on yo
 - Move history in SAN.
 - Stockfish 19 hints drawn as an arrow on the board, with an evaluation. Disabled during live online games.
 - Threatened-squares view.
+- Play the computer: Easy, Medium, Hard, Max. Undo takes back a full round. If Stockfish fails, continue the same position as a local game.
+- Resume: local and computer games survive leaving the game; online games resume by code and token.
+- Web client at `/play/`: 2D and 3D boards, local and computer play (Stockfish WASM), online play against the app.
 - Online multiplayer:
   - Private games joined by 6-character codes.
   - Server-authoritative clocks: 1+0, 3+2, 5+0, 10+0, 15+10.
   - Resign, draw offers, and rematch with color swap.
   - Reconnect within 60 seconds.
+  - Share view: streams the rendered board view (AR camera plus pieces, or the 3D/2D board) over WebRTC. No microphone, no other apps, no UI overlays. Tap the corner preview to see the opponent's view full screen; tap your own preview to return.
 - 3D fallback for devices without ARCore.
 - Debug overlay: tracking state, plane count, FPS, anchor, FEN.
 
@@ -133,17 +140,20 @@ sh ./gradlew :server:run              # listens on 0.0.0.0:8080, prints ws:// LA
 
 Point the app at it: Online -> Server URL (e.g. `ws://192.168.1.20:8080/ws`), or bake a default via `airchess.serverUrl=ws://...` in `local.properties`. For a USB-connected phone, run `adb reverse tcp:8080 tcp:8080` and use `ws://localhost:8080/ws` (the default). Deployment details: see [server/README.md](server/README.md).
 
+View sharing connects peers directly over STUN. For peers that cannot connect directly, set `XIRSYS_IDENT`, `XIRSYS_SECRET` and `XIRSYS_CHANNEL` on the server to hand out short-lived TURN credentials. The free Xirsys Developer plan is hard-capped: relay stops at the monthly allowance instead of billing.
+
 ## Controls
 
 - **Placement:** move the phone slowly over a table until the outline appears, then tap to place. Reposition returns to placement.
 - **Play:** tap a piece to select it (only the side to move, or your color online). Dots mark legal moves and rings mark captures. Tap a destination to move. Promotion opens a picker.
 - **Buttons:**
-  - Undo
+  - Undo (in computer games, takes back your move and the reply)
   - Reset (local only)
   - Resign / Draw (online)
   - Reposition
   - Hint
   - History
+  - Share view / Stop sharing (online)
   - Settings: engine depth 8-20, legal-move dots, threatened squares, haptics, debug overlay
   - Online: create or join with a code. Share sends the code.
 

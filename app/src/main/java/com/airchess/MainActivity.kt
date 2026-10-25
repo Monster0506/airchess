@@ -23,6 +23,7 @@ class MainActivity : ComponentActivity() {
                     clientFactory = { KtorOnlineGameClient() },
                     prefs = SharedPrefs(applicationContext, BuildConfig.DEFAULT_SERVER_URL),
                     defaultServerUrl = BuildConfig.DEFAULT_SERVER_URL,
+                    cameraContext = applicationContext,
                 )
             }
         }
