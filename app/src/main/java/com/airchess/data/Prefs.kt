@@ -7,10 +7,14 @@ import com.airchess.model.GameSettings
 
 interface Prefs {
     var playerName: String
-
     var serverUrl: String
-
     var settings: GameSettings
+    var onboardingComplete: Boolean
+    var prefer3d: Boolean
+    var savedMoves: String
+    var savedMode: String
+    var savedOnlineCode: String
+    var savedOnlineToken: String
 }
 
 class SharedPrefs(context: Context, private val defaultServerUrl: String) : Prefs {
@@ -19,12 +23,36 @@ class SharedPrefs(context: Context, private val defaultServerUrl: String) : Pref
         context.applicationContext.getSharedPreferences(FILE_NAME, Context.MODE_PRIVATE)
 
     override var playerName: String
-        get() = store.getString(KEY_NAME, "").orEmpty()
+        get() = store.getString(KEY_NAME, "Player").orEmpty()
         set(value) = store.edit { putString(KEY_NAME, value) }
 
     override var serverUrl: String
         get() = store.getString(KEY_SERVER_URL, null) ?: defaultServerUrl
         set(value) = store.edit { putString(KEY_SERVER_URL, value) }
+
+    override var onboardingComplete: Boolean
+        get() = store.getBoolean(KEY_ONBOARDING, false)
+        set(value) = store.edit { putBoolean(KEY_ONBOARDING, value) }
+
+    override var prefer3d: Boolean
+        get() = store.getBoolean(KEY_PREFER_3D, false)
+        set(value) = store.edit { putBoolean(KEY_PREFER_3D, value) }
+
+    override var savedMoves: String
+        get() = store.getString(KEY_MOVES, "").orEmpty()
+        set(value) = store.edit { putString(KEY_MOVES, value) }
+
+    override var savedMode: String
+        get() = store.getString(KEY_MODE, "").orEmpty()
+        set(value) = store.edit { putString(KEY_MODE, value) }
+
+    override var savedOnlineCode: String
+        get() = store.getString(KEY_ONLINE_CODE, "").orEmpty()
+        set(value) = store.edit { putString(KEY_ONLINE_CODE, value) }
+
+    override var savedOnlineToken: String
+        get() = store.getString(KEY_ONLINE_TOKEN, "").orEmpty()
+        set(value) = store.edit { putString(KEY_ONLINE_TOKEN, value) }
 
     override var settings: GameSettings
         get() {
@@ -50,6 +78,12 @@ class SharedPrefs(context: Context, private val defaultServerUrl: String) : Pref
         const val FILE_NAME = "airchess"
         const val KEY_NAME = "player_name"
         const val KEY_SERVER_URL = "server_url"
+        const val KEY_ONBOARDING = "onboarding_complete"
+        const val KEY_PREFER_3D = "prefer_3d"
+        const val KEY_MOVES = "saved_moves"
+        const val KEY_MODE = "saved_mode"
+        const val KEY_ONLINE_CODE = "saved_online_code"
+        const val KEY_ONLINE_TOKEN = "saved_online_token"
         const val KEY_DEPTH = "engine_depth"
         const val KEY_LEGAL = "show_legal_moves"
         const val KEY_THREATS = "show_threats"
