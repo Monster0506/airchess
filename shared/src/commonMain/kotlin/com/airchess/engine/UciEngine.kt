@@ -142,8 +142,6 @@ class UciEngine(
             launcher()
         } catch (e: IOException) {
             throw EngineUnavailableException("Cannot start engine: ${e.message}", e)
-        } catch (e: SecurityException) {
-            throw EngineUnavailableException("Cannot start engine: ${e.message}", e)
         }
         val started = Session(process, startPump(process))
         try {
