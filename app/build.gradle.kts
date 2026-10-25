@@ -14,6 +14,7 @@ val serverUrlOverride: String? = providers.gradleProperty("airchess.serverUrl").
     ?: providers.fileContents(rootProject.layout.projectDirectory.file("local.properties")).asText.orNull
         ?.let { text -> Properties().apply { load(text.reader()) }.getProperty("airchess.serverUrl") }
 val defaultServerUrl = serverUrlOverride?.trim()?.ifEmpty { null } ?: "ws://localhost:8080/ws"
+val releaseStore = providers.environmentVariable("AIRCHESS_KEYSTORE_FILE").orNull
 
 // Stockfish is far too large to commit, so the official release asset is downloaded once
 // into a cache outside build/, checked against a pinned SHA-256 and expanded into jniLibs.
@@ -161,15 +162,26 @@ android {
         applicationId = "com.airchess"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = providers.gradleProperty("airchess.versionCode").orNull?.toInt() ?: 1
+        versionName = providers.gradleProperty("airchess.versionName").orNull ?: "1.0"
         buildConfigField("String", "DEFAULT_SERVER_URL", "\"${defaultServerUrl.replace("\"", "")}\"")
+    }
+
+    signingConfigs {
+        if (releaseStore != null) {
+            create("distribution") {
+                storeFile = file(releaseStore)
+                storePassword = providers.environmentVariable("AIRCHESS_KEYSTORE_PASSWORD").get()
+                keyAlias = providers.environmentVariable("AIRCHESS_KEY_ALIAS").get()
+                keyPassword = providers.environmentVariable("AIRCHESS_KEY_PASSWORD").get()
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("distribution") ?: signingConfigs.getByName("debug")
         }
     }
 

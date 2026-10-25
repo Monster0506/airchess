@@ -103,7 +103,27 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 sh ./gradlew test                     # all unit tests (chess, protocol, server, app)
 ```
 
-On Windows use `gradlew.bat`. Release: `sh ./gradlew assembleRelease` (signed with the debug key for demo installs).
+On Windows use `gradlew.bat`. Release: `sh ./gradlew assembleRelease`. Local releases use the demo debug key unless `AIRCHESS_KEYSTORE_FILE` and the matching signing environment variables are set.
+
+## Android downloads
+
+[Download the latest APK](https://github.com/Monster0506/airchess/releases/latest/download/airchess.apk), or use **Download Android app** on the website. No GitHub login is required. Android may ask you to allow installation from your browser.
+
+`.github/workflows/android-release.yml` tests and builds every push to `main`, including merged pull requests. It publishes a signed APK and `SHA256SUMS` as a public GitHub Release only after all checks pass. Failed builds leave the previous download available. Older builds remain in [Releases](https://github.com/Monster0506/airchess/releases).
+
+The workflow uses standard Linux runners on this public repository, with no Actions artifact storage or paid services. It skips private repositories. The workflow can also be started manually on `main`.
+
+Repository secrets:
+
+| Secret | Value |
+|---|---|
+| `AIRCHESS_SERVER_URL` | Hosted `wss://` chess server URL |
+| `ANDROID_KEYSTORE_BASE64` | Base64-encoded signing keystore |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
+| `ANDROID_KEY_ALIAS` | Signing key alias |
+| `ANDROID_KEY_PASSWORD` | Signing key password |
+
+Keep the signing key unchanged so installed apps can update. CI uses the existing demo signing certificate. Keep a backup of that keystore outside Git; losing it prevents compatible updates. CI increments the version code with each workflow run and never commits the server URL or signing key.
 
 ## Multiplayer server
 
