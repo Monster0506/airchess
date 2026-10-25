@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { access, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
@@ -12,9 +13,8 @@ const roomFile = process.env.AIRCHESS_SMOKE_ROOM_FILE;
 const resultFile = resolve(process.env.AIRCHESS_SMOKE_RESULT_FILE || join(root, 'build/ios-smoke/browser-peer.json'));
 const screenshotFile = resolve(process.env.AIRCHESS_SMOKE_SCREENSHOT || join(root, 'build/ios-smoke/browser-peer.png'));
 const timeoutMs = Number(process.env.AIRCHESS_SMOKE_TIMEOUT_MS || 180_000);
-const serverBin = resolve(process.env.AIRCHESS_SERVER_BIN || join(root, 'server/build/install/server/bin/server'));
+const serverBin = resolve(process.env.AIRCHESS_SERVER_BIN || join(root, `server/build/install/server/bin/server${process.platform === 'win32' ? '.bat' : ''}`));
 let serverProcess;
-let browser;
 let page;
 let roomCode;
 let phase = 'starting';
@@ -35,6 +35,22 @@ async function atomicJson(path, data) {
   const temp = `${path}.${process.pid}.tmp`;
   await writeFile(temp, `${JSON.stringify(data, null, 2)}\n`);
   await rename(temp, path);
+}
+function gameUrl(code) {
+  const url = new URL(serverUrl);
+  url.pathname = `${url.pathname.replace(/\/+$/, '')}/`;
+  if (code) url.searchParams.set('code', code);
+  return url.href;
+}
+
+async function enableSharing(page) {
+  await page.locator('#cameraToggle').click();
+  await page.waitForFunction(() => document.querySelector('#cameraToggle')?.textContent.includes('Stop sharing'), null, { timeout: timeoutMs });
+}
+
+async function playMove(page, from, to) {
+  await page.locator(`[data-square="${from}"]`).click();
+  await page.locator(`[data-square="${to}"]`).click();
 }
 
 async function readRoomCode() {
@@ -64,6 +80,7 @@ async function startServer() {
     cwd: root,
     env: { ...process.env, PORT: String(port) },
     stdio: 'inherit',
+    shell: process.platform === 'win32',
   });
   serverProcess.on('exit', code => {
     if (code !== null && code !== 0 && phase !== 'complete') {
@@ -182,6 +199,7 @@ async function roomState(page) {
     side: document.querySelector('#mySide')?.textContent.trim(),
     status: document.querySelector('#status')?.textContent.trim(),
     moves: [...document.querySelectorAll('#moves .move-cell')].map(cell => cell.textContent.trim()),
+    uciMoves: window.__airChessSnapshots?.at(-1)?.moves ?? [],
     whiteClock: document.querySelector('#mySide')?.textContent.includes('White')
       ? document.querySelector('#myClock')?.textContent.trim()
       : document.querySelector('#oppClock')?.textContent.trim(),
@@ -203,12 +221,13 @@ async function waitForMove(page, move) {
 async function readResult() {
   const stats = await readPeerStats(page);
   const state = await roomState(page);
+  assert(state.uciMoves.length === state.moves.length, `Snapshot/UCI move list mismatch: ${state.uciMoves.length} server moves vs ${state.moves.length} browser moves.`);
   return {
     version: 1,
     phase,
     roomCode,
     browserSide: state.side?.toUpperCase(),
-    moves: state.moves.map((move, index) => ['e2e4', 'e7e5', 'g1f3'][index] ?? move),
+    moves: state.uciMoves,
     sanMoves: state.moves,
     turn: state.activeClock,
     status: state.status,
@@ -244,18 +263,28 @@ async function run() {
         return peer;
       },
     });
+    const NativeWebSocket = window.WebSocket;
+    window.__airChessSnapshots = [];
+    window.WebSocket = new Proxy(NativeWebSocket, {
+      construct(target, args) {
+        const socket = Reflect.construct(target, args, target);
+        socket.addEventListener('message', event => {
+          try {
+            const message = JSON.parse(event.data);
+            if (message.snapshot) window.__airChessSnapshots.push(message.snapshot);
+          } catch {}
+        });
+        return socket;
+      },
+    });
   });
   page = await context.newPage();
   page.on('pageerror', error => console.error(`Browser page error: ${error.message}`));
-  const gameUrl = new URL(serverUrl);
-  gameUrl.pathname = `${gameUrl.pathname.replace(/\/+$/, '')}/`;
-  gameUrl.searchParams.set('code', roomCode);
-  await page.goto(gameUrl.href, { waitUntil: 'domcontentloaded' });
+  await page.goto(gameUrl(roomCode), { waitUntil: 'domcontentloaded' });
   await page.locator('#name').fill('AirChess Browser Smoke');
   await page.locator('#joinGame').click();
   await page.waitForFunction(() => document.querySelector('#mySide')?.textContent.trim() === 'Black', null, { timeout: timeoutMs });
-  await page.locator('#cameraToggle').click();
-  await page.waitForFunction(() => document.querySelector('#cameraToggle')?.textContent.includes('Stop sharing'), null, { timeout: timeoutMs });
+  await enableSharing(page);
   await page.waitForFunction(() => document.querySelector('#cameraStatus')?.textContent.trim() === 'Views connected', null, { timeout: timeoutMs });
   await page.locator('#camera-board').click();
   await page.locator('#videoStage').waitFor({ state: 'visible', timeout: timeoutMs });
@@ -304,8 +333,7 @@ async function run() {
   assert(beforeE5.activeClock === 'BLACK', `Expected Black to move after e2e4, got ${beforeE5.activeClock}.`);
   await page.locator('#stageBoardToggle').click();
   await page.locator('#videoStage').waitFor({ state: 'hidden', timeout: timeoutMs });
-  await page.locator('[data-square="e7"]').click();
-  await page.locator('[data-square="e5"]').click();
+  await playMove(page, 'e7', 'e5');
   await waitForMove(page, 'e5');
   const afterE5 = await roomState(page);
   assert(afterE5.moves.map(move => move.toLowerCase()).join(',') === 'e4,e5', `Browser move list mismatch: ${afterE5.moves.join(' ')}`);
