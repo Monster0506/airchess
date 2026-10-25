@@ -21,7 +21,6 @@ jobs:
       contents: write
     env:
       AIRCHESS_SERVER_URL: ${{ secrets.AIRCHESS_SERVER_URL }}
-      AIRCHESS_KEYSTORE_FILE: ${{ runner.temp }}/airchess.jks
       AIRCHESS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       AIRCHESS_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       AIRCHESS_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -42,11 +41,13 @@ jobs:
         run: |
           for name in AIRCHESS_SERVER_URL ANDROID_KEYSTORE_BASE64 AIRCHESS_KEYSTORE_PASSWORD AIRCHESS_KEY_ALIAS AIRCHESS_KEY_PASSWORD; do
             if [[ -z "${!name}" ]]; then
-              echo "::error::Missing repository secret: $name"
+              echo "::error::Missing release setting: $name"
               exit 1
             fi
           done
           umask 077
+          AIRCHESS_KEYSTORE_FILE="$RUNNER_TEMP/airchess.jks"
+          echo "AIRCHESS_KEYSTORE_FILE=$AIRCHESS_KEYSTORE_FILE" >> "$GITHUB_ENV"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$AIRCHESS_KEYSTORE_FILE"
           echo "VERSION_CODE=$((GITHUB_RUN_NUMBER + 1))" >> "$GITHUB_ENV"
           echo "VERSION_NAME=1.0.$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
