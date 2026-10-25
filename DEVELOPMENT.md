@@ -66,10 +66,11 @@ Game state lives in `ChessGame`. The AR layer renders an immutable `BoardViewSta
 
 | Module | Contents |
 |---|---|
-| `:chess` | Pure Kotlin rules, FEN, SAN |
-| `:protocol` | Wire messages |
+| `:chess` | Multiplatform (JVM, iOS) rules, FEN, SAN |
+| `:protocol` | Multiplatform (JVM, iOS) wire messages |
+| `:shared` | Multiplatform (Android, iOS) view model, UCI engine driver, online client, models, board and AR math, prefs. iOS builds it as the static `Shared` framework |
 | `:server` | Ktor server |
-| `:app` | Android app: `ar/`, `ui/`, `viewmodel/`, `engine/`, `net/`, `media/`, `model/`, `data/` |
+| `:app` | Android app: `ar/`, `ui/`, `engine/` (Stockfish process), `media/` (WebRTC), plus Android-only glue |
 | `server/src/main/resources/web/` | Browser client served at `/play/` |
 
 ## Requirements
@@ -140,8 +141,15 @@ View sharing connects peers directly over STUN. For peers that cannot connect di
 
 - `:chess`: rules, including perft.
 - `:protocol`: codec.
+- `:shared`: view model (local, computer, online, resume, expired rooms, view sharing), UCI parsing and engine driver, board geometry, piece reconciliation.
 - `:server`: rooms, clocks, view-sharing signaling, WebSocket integration.
-- `:app`: view model (local, computer, online, resume, expired rooms), UCI parsing, board geometry, piece reconciliation.
+- `:app`: Android-only code (SceneView math adapters, UI formatting).
+
+```sh
+sh ./gradlew :chess:jvmTest :protocol:jvmTest :shared:testAndroidHostTest :app:testDebugUnitTest :server:test
+```
+
+The iOS targets cannot build on Windows or Linux. The `iOS shared` workflow runs `:chess:iosSimulatorArm64Test`, `:protocol:iosSimulatorArm64Test`, `:shared:iosSimulatorArm64Test` and links the `Shared` framework on macOS.
 
 ## Assets and licenses
 

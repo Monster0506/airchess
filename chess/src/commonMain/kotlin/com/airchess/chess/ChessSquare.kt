@@ -1,5 +1,7 @@
 package com.airchess.chess
 
+import kotlin.jvm.JvmInline
+
 /**
  * One of the 64 board squares. Index layout: a1 = 0, b1 = 1, ..., h1 = 7, a2 = 8, ..., h8 = 63.
  * File and rank are zero-based (file 0 = 'a', rank 0 = '1').
