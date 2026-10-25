@@ -75,10 +75,11 @@ fun PlayOnlineSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text("Play online", style = MaterialTheme.typography.titleLarge)
+            val code = online?.code
             when {
                 online == null -> LobbyForm(state, onCreate, onJoin)
-                online.code == null -> ConnectingPanel(onCancel = onLeave)
-                else -> GamePanel(code = online.code, waiting = online.waitingForOpponent, serverUrl = state.serverUrl, onLeave = onLeave)
+                code == null -> ConnectingPanel(onCancel = onLeave)
+                else -> GamePanel(code = code, waiting = online.waitingForOpponent, serverUrl = state.serverUrl, onLeave = onLeave)
             }
         }
     }

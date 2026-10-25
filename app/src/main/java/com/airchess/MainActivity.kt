@@ -7,8 +7,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.airchess.data.SharedPrefs
+import com.airchess.data.SharedPreferencesStore
+import com.airchess.data.StoredPrefs
 import com.airchess.engine.StockfishEngine
+import com.airchess.media.AndroidViewSharing
 import com.airchess.net.KtorOnlineGameClient
 import com.airchess.ui.App
 import com.airchess.viewmodel.ChessViewModel
@@ -21,9 +23,9 @@ class MainActivity : ComponentActivity() {
                 ChessViewModel(
                     engineProvider = { StockfishEngine(applicationContext) },
                     clientFactory = { KtorOnlineGameClient() },
-                    prefs = SharedPrefs(applicationContext, BuildConfig.DEFAULT_SERVER_URL),
+                    prefs = StoredPrefs(SharedPreferencesStore(applicationContext), BuildConfig.DEFAULT_SERVER_URL),
                     defaultServerUrl = BuildConfig.DEFAULT_SERVER_URL,
-                    cameraContext = applicationContext,
+                    viewSharing = AndroidViewSharing(applicationContext),
                 )
             }
         }

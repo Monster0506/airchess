@@ -39,6 +39,7 @@ import com.airchess.chess.Fen
 import com.airchess.model.GameMode
 import com.airchess.model.HapticKind
 import com.airchess.model.UiEvent
+import com.airchess.media.androidSharing
 import com.airchess.viewmodel.ChessViewModel
 import kotlinx.coroutines.launch
 
@@ -216,7 +217,7 @@ private fun AppContent(viewModel: ChessViewModel) {
                 repositionToken = state.repositionToken,
                 onSquareTapped = viewModel::onSquareTapped,
                 onStatusChanged = viewModel::onArStatus,
-                capture = viewModel.sceneCapture,
+                capture = viewModel.androidSharing.capture,
                 prefer3d = state.prefer3d,
                 onPrefer3d = { viewModel.setPrefer3d(true) },
                 modifier = Modifier.fillMaxSize(),

@@ -1,18 +1,24 @@
 plugins {
-    alias(libs.plugins.kotlin.jvm)
-}
-
-java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    alias(libs.plugins.kotlin.multiplatform)
 }
 
 kotlin {
-    compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    jvm {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
+    }
+    iosArm64()
+    iosSimulatorArm64()
+
+    sourceSets {
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
     }
 }
 
-dependencies {
-    testImplementation(libs.junit)
+// The release workflow and the server build call `test`; multiplatform only has per-target tasks.
+tasks.register("test") {
+    dependsOn("jvmTest")
 }

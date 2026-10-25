@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.airchess.media.CameraLayout
+import com.airchess.media.androidSharing
 import com.airchess.model.GameUiState
 import com.airchess.viewmodel.ChessViewModel
 
@@ -77,12 +78,12 @@ private fun CameraVideo(viewModel: ChessViewModel, layout: CameraLayout, onSwap:
     val context = LocalContext.current
     val swap by rememberUpdatedState(onSwap)
     val view = remember(viewModel, layout == CameraLayout.PREVIEW) {
-        viewModel.createCameraView(context, layout) { swap() }
+        viewModel.androidSharing.createView(context, layout) { swap() }
     }
     DisposableEffect(viewModel, view) {
-        onDispose { view?.let(viewModel::releaseCameraView) }
+        onDispose { view?.let(viewModel.androidSharing::releaseView) }
     }
     if (view != null) {
-        AndroidView(factory = { view }, update = { viewModel.updateCameraView(it, layout) }, modifier = modifier)
+        AndroidView(factory = { view }, update = { viewModel.androidSharing.updateView(it, layout) }, modifier = modifier)
     }
 }

@@ -48,8 +48,8 @@ class BoardRef(val geometry: BoardGeometry = BoardGeometry()) {
 
         return BoardPicker.pick(
             geometry,
-            worldToLocalPosition(ray.origin, toLocal),
-            worldToLocalDirection(ray.direction, toLocal),
+            worldToLocalPosition(ray.origin, toLocal).toVec3(),
+            worldToLocalDirection(ray.direction, toLocal).toVec3(),
             pieces,
         )
     }
