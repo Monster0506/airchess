@@ -208,13 +208,13 @@ final class ArSession: NSObject, ObservableObject {
     private func updateCoaching() {
         let text: String?
         if trackingLost {
-            text = "Tracking lost. Move your phone slowly."
+            text = "Tracking lost. Move your phone slowly to recover."
         } else if !isPlacing {
             text = nil
         } else if lastHit != nil {
             text = "Tap to place the board"
         } else {
-            text = "Move your phone to find a table"
+            text = "Move your phone around to find a table"
         }
 
         if text != coaching {
