@@ -1,18 +1,19 @@
 plugins {
-    alias(libs.plugins.kotlin.jvm)
-}
-
-java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    alias(libs.plugins.kotlin.multiplatform)
 }
 
 kotlin {
-    compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    jvm {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
     }
-}
+    iosArm64()
+    iosSimulatorArm64()
 
-dependencies {
-    testImplementation(libs.junit)
+    sourceSets {
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
+    }
 }

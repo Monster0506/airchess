@@ -1,9 +1,9 @@
 package com.airchess.chess
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertThrows
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertFailsWith
+import kotlin.test.Test
 
 class FenTest {
 
@@ -73,7 +73,7 @@ class FenTest {
             "4k3/8/8/8/8/8/4R3/4K3 w - - 0 1",
         )
         for (fen in bad) {
-            assertThrows("Expected failure for '$fen'", IllegalArgumentException::class.java) {
+            assertFailsWith<IllegalArgumentException>("Expected failure for '$fen'") {
                 Fen.parse(fen)
             }
         }

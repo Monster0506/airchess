@@ -1,6 +1,6 @@
 package com.airchess.chess
 
-import org.junit.Assert.assertTrue
+import kotlin.test.assertTrue
 
 fun sq(name: String): ChessSquare = ChessSquare.fromAlgebraic(name)
 
@@ -8,7 +8,7 @@ fun sq(name: String): ChessSquare = ChessSquare.fromAlgebraic(name)
 fun ChessGame.play(vararg ucis: String) {
     for (uci in ucis) {
         val move = findMoveByUci(uci)
-        assertTrue("Move $uci not legal in ${exportFen()}", move != null && makeMove(move))
+        assertTrue(move != null && makeMove(move), "Move $uci not legal in ${exportFen()}")
     }
 }
 

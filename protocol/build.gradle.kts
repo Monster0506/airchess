@@ -1,20 +1,23 @@
 plugins {
-    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlin.serialization)
 }
 
-java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
-}
-
 kotlin {
-    compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    jvm {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
     }
-}
+    iosArm64()
+    iosSimulatorArm64()
 
-dependencies {
-    api(libs.kotlinx.serialization.json)
-    testImplementation(libs.junit)
+    sourceSets {
+        commonMain.dependencies {
+            api(libs.kotlinx.serialization.json)
+        }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
+    }
 }
