@@ -19,3 +19,4 @@
 .stage-camera-off{right:18px}
 @media(max-width:800px){.local-video-swap{width:30vw;top:12px;right:12px}.stage-board-toggle{left:12px;bottom:12px}.stage-camera-off{right:12px;bottom:12px}}
 .stage-camera-status{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;padding:8px 12px;background:#16231ecc;color:var(--ink);border-radius:4px;font-size:14px;pointer-events:none;text-align:center}
+.move-list{grid-template-columns:2.4em repeat(2,minmax(0,1fr))}
