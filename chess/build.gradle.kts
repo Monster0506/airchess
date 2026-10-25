@@ -17,3 +17,8 @@ kotlin {
         }
     }
 }
+
+// The release workflow and the server build call `test`; multiplatform only has per-target tasks.
+tasks.register("test") {
+    dependsOn("jvmTest")
+}

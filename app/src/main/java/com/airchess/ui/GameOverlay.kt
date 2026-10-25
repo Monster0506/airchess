@@ -147,11 +147,13 @@ private fun StatusPill(state: GameUiState) {
 
 @Composable
 private fun EngineHintCard(engine: EngineUiState, computerThinking: Boolean) {
+    val error = engine.engineError
+    val hint = engine.hintText
     val text = when {
         computerThinking -> "Computer is thinking"
         engine.isAnalyzing -> "Analyzing..."
-        engine.engineError != null -> engine.engineError
-        engine.hintText != null -> engine.hintText + (engine.evalText?.let { "  Eval: $it" } ?: "")
+        error != null -> error
+        hint != null -> hint + (engine.evalText?.let { "  Eval: $it" } ?: "")
         else -> return
     }
     val isError = !engine.isAnalyzing && engine.engineError != null

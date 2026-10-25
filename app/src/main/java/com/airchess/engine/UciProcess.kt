@@ -3,16 +3,7 @@ package com.airchess.engine
 import java.io.InputStream
 import java.io.OutputStream
 
-/** Line-oriented view of a running UCI engine, so tests can substitute a fake. */
-internal interface UciProcess {
-    fun writeLine(line: String)
-
-    /** Blocks until a line arrives; null once the engine closed its output. */
-    fun readLine(): String?
-
-    fun destroy()
-}
-
+/** Child-process transport: UciEngine reads it on its IO dispatcher, so blocking is fine. */
 internal class StreamUciProcess(
     input: InputStream,
     private val output: OutputStream,
@@ -28,7 +19,7 @@ internal class StreamUciProcess(
         }
     }
 
-    override fun readLine(): String? = reader.readLine()
+    override suspend fun readLine(): String? = reader.readLine()
 
     override fun destroy() {
         onDestroy()

@@ -210,6 +210,7 @@ android {
 dependencies {
     implementation(project(":chess"))
     implementation(project(":protocol"))
+    implementation(project(":shared"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
@@ -221,8 +222,6 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.kotlinx.coroutines.android)
     implementation("io.github.webrtc-sdk:android:144.7559.14")
-    implementation(libs.ktor.client.okhttp)
-    implementation(libs.ktor.client.websockets)
     implementation(libs.sceneview.ar)
     debugImplementation(libs.androidx.compose.ui.tooling)
 

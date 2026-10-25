@@ -33,6 +33,8 @@ class StockfishEngine(context: Context) : ChessEngine {
             return StreamUciProcess.launch(binary.path)
         } catch (e: IOException) {
             throw EngineUnavailableException("Cannot start Stockfish: ${e.message}", e)
+        } catch (e: SecurityException) {
+            throw EngineUnavailableException("Cannot start Stockfish: ${e.message}", e)
         }
     }
 

@@ -24,9 +24,8 @@ import org.webrtc.VideoSource
 import org.webrtc.VideoTrack
 
 enum class CameraLayout { PREVIEW, OPPONENT }
-enum class CameraPhase { OFF, STARTING, WAITING, CONNECTING, CONNECTED, ERROR }
 
-class LiveCameraSession(context: Context) {
+class LiveCameraSession(context: Context, private val scene: SceneCapture) : ViewSharingSession {
     private val appContext = context.applicationContext
     private val main = Handler(Looper.getMainLooper())
     private val egl = EglBase.create()
@@ -56,7 +55,7 @@ class LiveCameraSession(context: Context) {
             .createPeerConnectionFactory()
     }
 
-    fun start(servers: List<IceServer>, side: Side, scene: SceneCapture, signal: (CameraSignalKind, String) -> Unit, status: (CameraPhase, String) -> Unit) {
+    override fun start(servers: List<IceServer>, side: Side, signal: (CameraSignalKind, String) -> Unit, status: (CameraPhase, String) -> Unit) {
         check(!closed)
         stop()
         iceConfig = servers
@@ -82,7 +81,7 @@ class LiveCameraSession(context: Context) {
         }
     }
 
-    fun receive(kind: CameraSignalKind, payload: String) {
+    override fun receive(kind: CameraSignalKind, payload: String) {
         if (kind == CameraSignalKind.STOP) {
             stopCapture()
             return
@@ -135,12 +134,12 @@ class LiveCameraSession(context: Context) {
         video.release()
     }
 
-    fun stop() {
+    override fun stop() {
         if (active) { onSignal?.invoke(CameraSignalKind.STOP, "") }
         stopCapture()
     }
 
-    fun close() {
+    override fun close() {
         if (closed) { return }
         stop()
         while (views.isNotEmpty()) { releaseView(views.last()) }
