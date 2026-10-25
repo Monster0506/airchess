@@ -5,6 +5,7 @@ on:
     branches:
       - feat/ios-app
       - feat/ios
+      - feat/ios-share
   workflow_dispatch:
 
 permissions:
