@@ -6,8 +6,8 @@ import com.airchess.chess.ChessPiece
 import com.airchess.chess.ChessSquare
 import com.airchess.chess.MoveRecord
 import com.airchess.chess.PieceType
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class MoveListFormatTest {
 

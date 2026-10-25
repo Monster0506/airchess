@@ -1,9 +1,4 @@
 package com.airchess.ui
-import android.content.ClipData
-import android.content.ClipboardManager
-
-import android.content.Context
-import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -39,7 +34,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -55,11 +49,14 @@ private const val TAB_CREATE = 0
 private const val TAB_JOIN = 1
 private const val CODE_FONT_SP = 44
 private const val CODE_SPACING_SP = 6
+private const val SHARE_TITLE = "Share game"
+private const val INVITE_LABEL = "AirChess invite"
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 fun PlayOnlineSheet(
     state: GameUiState,
+    platform: PlatformServices,
     onCreate: (name: String, serverUrl: String, timeControl: TimeControl, color: ColorChoice) -> Unit,
     onJoin: (code: String, name: String, serverUrl: String) -> Unit,
     onLeave: () -> Unit,
@@ -79,7 +76,7 @@ fun PlayOnlineSheet(
             when {
                 online == null -> LobbyForm(state, onCreate, onJoin)
                 code == null -> ConnectingPanel(onCancel = onLeave)
-                else -> GamePanel(code = code, waiting = online.waitingForOpponent, serverUrl = state.serverUrl, onLeave = onLeave)
+                else -> GamePanel(code = code, waiting = online.waitingForOpponent, serverUrl = state.serverUrl, platform = platform, onLeave = onLeave)
             }
         }
     }
@@ -95,8 +92,7 @@ private fun ConnectingPanel(onCancel: () -> Unit) {
 }
 
 @Composable
-private fun GamePanel(code: String, waiting: Boolean, serverUrl: String, onLeave: () -> Unit) {
-    val context = LocalContext.current
+private fun GamePanel(code: String, waiting: Boolean, serverUrl: String, platform: PlatformServices, onLeave: () -> Unit) {
     val link = webInviteLink(serverUrl, code)
     Text(
         text = if (waiting) "Waiting for your opponent. Share this game:" else "Game code",
@@ -114,15 +110,12 @@ private fun GamePanel(code: String, waiting: Boolean, serverUrl: String, onLeave
         textAlign = TextAlign.Center,
     )
     link?.let { webLink ->
-        Button(onClick = { shareCode(context, code, webLink) }, modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = { platform.shareText(SHARE_TITLE, "Join my AirChess game: $webLink (code $code)") }, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Filled.Share, contentDescription = null)
             Text("Share invite", modifier = Modifier.padding(start = 8.dp))
         }
         OutlinedButton(
-            onClick = {
-                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText("AirChess invite", webLink))
-            },
+            onClick = { platform.copyText(INVITE_LABEL, webLink) },
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Copy invite link") }
     }
@@ -230,11 +223,3 @@ private const val MAX_NAME_LENGTH = 20
 
 internal fun sanitizeCode(raw: String): String =
     raw.uppercase().filter { it in Protocol.CODE_ALPHABET }.take(Protocol.CODE_LENGTH)
-
-private fun shareCode(context: Context, code: String, webLink: String) {
-    val send = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, "Join my AirChess game: $webLink (code $code)")
-    }
-    context.startActivity(Intent.createChooser(send, "Share game").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-}

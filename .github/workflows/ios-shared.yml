@@ -5,6 +5,7 @@ on:
     branches:
       - feat/ios-core
       - feat/ios
+      - feat/ios-ui
   workflow_dispatch:
 
 permissions:

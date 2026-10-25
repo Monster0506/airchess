@@ -10,12 +10,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airchess.chess.ChessSquare
 import com.airchess.model.ArStatus
-import com.airchess.model.TrackingStatus
 
 @Composable
 fun DebugOverlay(
@@ -47,20 +45,4 @@ fun DebugOverlay(
             )
         }
     }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFF888888)
-@Composable
-private fun DebugOverlayPreview() {
-    DebugOverlay(
-        status = ArStatus(
-            tracking = TrackingStatus.PLACED,
-            trackingFailure = null,
-            planeCount = 2,
-            anchorState = "placed",
-            fps = 60,
-        ),
-        selected = ChessSquare.fromAlgebraic("e2"),
-        fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-    )
 }
