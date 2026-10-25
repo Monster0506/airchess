@@ -1,0 +1,18 @@
+[Unit]
+Description=AirChess multiplayer server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=exedev
+Group=exedev
+WorkingDirectory=/opt/airchess
+Environment=PORT=8080
+Environment=JAVA_OPTS=-Xmx256m
+ExecStart=/opt/airchess/server/bin/server
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

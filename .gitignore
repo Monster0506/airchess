@@ -11,4 +11,5 @@ captures/
 *.apk
 *.aab
 .tj-worktrees/
+airchess-server.tgz
 .cache/

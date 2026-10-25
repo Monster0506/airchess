@@ -68,3 +68,22 @@ TLS (Caddy, nginx, a platform router) and point the app at `wss://your.host/ws`.
 allow WebSocket upgrades and idle connections of at least 30 seconds (the server pings every 15).
 
 The server keeps all rooms in one process, so run a single instance.
+
+### systemd deployment
+
+`deploy/airchess.service` runs the distribution from `/opt/airchess` on port 8080 under Java 17+.
+Put a TLS-terminating proxy in front and point the app at `wss://<host>/ws`. Deploy or redeploy
+from the repository root (`HOST` is your server's SSH name; adjust `User=` in the unit to match):
+
+```sh
+sh ./gradlew :server:installDist --console=plain
+tar -C server/build/install -czf airchess-server.tgz server
+scp airchess-server.tgz server/deploy/airchess.service "$HOST":/tmp/
+ssh "$HOST" 'sudo mkdir -p /opt/airchess && sudo rm -rf /opt/airchess/server \
+  && sudo tar -C /opt/airchess -xzf /tmp/airchess-server.tgz \
+  && sudo chmod -R go-w /opt/airchess && sudo chmod +x /opt/airchess/server/bin/server \
+  && sudo cp /tmp/airchess.service /etc/systemd/system/ && sudo systemctl daemon-reload \
+  && sudo systemctl enable airchess && sudo systemctl restart airchess'
+```
+
+Restarting ends all live games. Logs: `ssh "$HOST" journalctl -u airchess -f`.

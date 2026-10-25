@@ -31,7 +31,7 @@ Create a game and share a six-character code. Your friend joins from their own p
 
 ## Pointing the app at a server
 
-The default server URL is `ws://localhost:8080/ws`, which reaches a server on your computer after `adb reverse tcp:8080 tcp:8080`. To bake in another one, set `airchess.serverUrl` in `local.properties` or pass `-Pairchess.serverUrl=ws://192.168.1.20:8080/ws`. The URL can also be edited in the Play online sheet.
+The default server URL is `ws://localhost:8080/ws`, which reaches a server on your computer after `adb reverse tcp:8080 tcp:8080`. To bake in a hosted server, set `airchess.serverUrl=wss://your.host/ws` in `local.properties` (gitignored) or pass `-Pairchess.serverUrl=...`. The URL can also be edited in the Play online sheet.
 
 ---
 
@@ -111,7 +111,7 @@ On Windows use `gradlew.bat`. Release: `sh ./gradlew assembleRelease` (signed wi
 sh ./gradlew :server:run              # listens on 0.0.0.0:8080, prints ws:// LAN URLs
 ```
 
-Point the app at it: Online → Server URL (e.g. `ws://192.168.1.20:8080/ws`), or bake a default via `airchess.serverUrl=ws://...` in `local.properties`. For a USB-connected phone, run `adb reverse tcp:8080 tcp:8080` and use `ws://localhost:8080/ws` (the default). Deployment details: see [server/README.md](server/README.md).
+Point the app at it: Online -> Server URL (e.g. `ws://192.168.1.20:8080/ws`), or bake a default via `airchess.serverUrl=ws://...` in `local.properties`. For a USB-connected phone, run `adb reverse tcp:8080 tcp:8080` and use `ws://localhost:8080/ws` (the default). Deployment details: see [server/README.md](server/README.md).
 
 ## Controls
 
