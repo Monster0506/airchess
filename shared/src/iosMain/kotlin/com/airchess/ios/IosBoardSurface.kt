@@ -51,7 +51,6 @@ class IosBoardSurface(private val factory: BoardControllerFactory) : BoardSurfac
         }
         LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
             controller?.pause()
-            viewModel.stopCamera()
         }
         LaunchedEffect(gate) {
             if (gate == ArGateScreen.AR || gate == ArGateScreen.BOARD_3D) {
@@ -65,6 +64,10 @@ class IosBoardSurface(private val factory: BoardControllerFactory) : BoardSurfac
             }
         }
         val presenter = remember(controller) { controller?.let { BoardPresenter(it) } }
+        LaunchedEffect(failure) {
+            if (failure != null) controller?.pause()
+        }
+
 
         LaunchedEffect(presenter, state.board) {
             presenter?.present(state.board)
@@ -75,7 +78,7 @@ class IosBoardSurface(private val factory: BoardControllerFactory) : BoardSurfac
 
         Box(modifier.fillMaxSize()) {
             val current = controller
-            if (current != null && (gate == ArGateScreen.AR || gate == ArGateScreen.BOARD_3D)) {
+            if (failure == null && current != null && (gate == ArGateScreen.AR || gate == ArGateScreen.BOARD_3D)) {
                 UIKitViewController(
                     factory = { current.viewController },
                     modifier = Modifier.fillMaxSize(),
@@ -118,7 +121,7 @@ private fun GateContent(
     onSettings: () -> Unit,
     on3d: () -> Unit,
 ) {
-    val title = when (screen) {
+    val title = if (failure != null) "Board could not be loaded" else when (screen) {
         ArGateScreen.CHECKING -> "Checking AR support"
         ArGateScreen.UNSUPPORTED -> "AR is unavailable"
         ArGateScreen.INSTALL_ARCORE -> "AR is unavailable"
@@ -153,7 +156,7 @@ private fun GateContent(
                         Button(onClick = onSettings) { Text("Open Settings") }
                     else -> Unit
                 }
-                if (screen != ArGateScreen.CHECKING) {
+                if (screen != ArGateScreen.CHECKING && (failure == null || screen == ArGateScreen.UNSUPPORTED)) {
                     OutlinedButton(onClick = on3d) { Text("Play in 3D") }
                 }
             }

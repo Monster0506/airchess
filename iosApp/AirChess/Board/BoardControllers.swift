@@ -8,7 +8,6 @@ import UIKit
 /// One live board view hosted for Kotlin: the 3D scene or the AR scene.
 @MainActor
 final class BoardControllerImpl: NSObject, BoardController {
-    private let mode: BoardMode
     private let scene: BoardScene
     private let arSession: ArSession?
     private(set) var renderView: ARView?
@@ -31,7 +30,6 @@ final class BoardControllerImpl: NSObject, BoardController {
     private var listener: BoardListener?
 
     init(mode: BoardMode, layout: BoardLayout, listener: BoardListener) {
-        self.mode = mode
         self.listener = listener
         let scene = BoardScene(layout: layout) { message in
             listener.onSessionFailed(message: message)

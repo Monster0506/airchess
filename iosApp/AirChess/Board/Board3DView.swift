@@ -1,4 +1,3 @@
-import ARKit
 import RealityKit
 import SwiftUI
 import UIKit
