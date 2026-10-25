@@ -118,7 +118,7 @@ jobs:
           set +e
           xcodebuild test \
             -project iosApp/AirChess.xcodeproj \
-            -scheme AirChess \
+            -parallel-testing-enabled NO \
             -destination "id=$SIM_UDID" \
             -derivedDataPath build/ios-derived \
             -resultBundlePath "$RESULT_DIR/AirChess.xcresult" \
