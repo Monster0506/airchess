@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -31,16 +31,21 @@ fun PromotionDialog(
         onDismissRequest = onDismiss,
         title = { Text("Promote pawn") },
         text = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-            ) {
-                PieceType.PROMOTIONS.forEach { type ->
-                    PromotionOption(
-                        glyph = pieceGlyph(color, type),
-                        label = promotionLabel(type),
-                        onClick = { onChoose(type) },
-                    )
+            Column(verticalArrangement = Arrangement.spacedBy(OPTION_GAP)) {
+                PieceType.PROMOTIONS.chunked(OPTIONS_PER_ROW).forEach { row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(OPTION_GAP),
+                    ) {
+                        row.forEach { type ->
+                            PromotionOption(
+                                glyph = pieceGlyph(color, type),
+                                label = promotionLabel(type),
+                                onClick = { onChoose(type) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
                 }
             }
         },
@@ -51,10 +56,10 @@ fun PromotionDialog(
 }
 
 @Composable
-private fun PromotionOption(glyph: String, label: String, onClick: () -> Unit) {
+private fun PromotionOption(glyph: String, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Button(
         onClick = onClick,
-        modifier = Modifier.size(84.dp),
+        modifier = modifier.height(OPTION_HEIGHT),
         contentPadding = PaddingValues(4.dp),
         colors = ButtonDefaults.filledTonalButtonColors(),
     ) {
@@ -64,6 +69,11 @@ private fun PromotionOption(glyph: String, label: String, onClick: () -> Unit) {
         }
     }
 }
+
+// Four fixed-size buttons in one row overflow narrow phone dialogs; two flexible rows always fit.
+private const val OPTIONS_PER_ROW = 2
+private val OPTION_HEIGHT = 84.dp
+private val OPTION_GAP = 8.dp
 
 private fun pieceGlyph(color: ChessColor, type: PieceType): String {
     val white = color == ChessColor.WHITE
