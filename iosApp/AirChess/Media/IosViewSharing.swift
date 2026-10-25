@@ -9,6 +9,7 @@ import WebRTC
 final class IosViewSharingBridgeImpl: NSObject, IosViewSharingBridge, ObservableObject {
     @Published private(set) var isActive = false
     @Published private(set) var statusText = "Camera off"
+    @Published private(set) var remoteFrameEvidence = "No remote frames"
     weak var renderView: ARView? {
         didSet {
             session?.capture.renderView = renderView
@@ -40,12 +41,17 @@ final class IosViewSharingBridgeImpl: NSObject, IosViewSharingBridge, Observable
             self?.isActive = active
             self?.statusText = message
         }
+        next.onRemoteFrameEvidence = { [weak self] evidence in self?.remoteFrameEvidence = evidence }
         return next
     }
 
     func showOpponent(opponent: Bool, view: UIView) {
         guard let view = view as? IosSharingVideoView else { return }
         session?.showOpponent(opponent, in: view)
+    }
+    func releaseView(view: UIView) {
+        guard let view = view as? IosSharingVideoView else { return }
+        session?.releaseVideoView(view)
     }
 }
 
@@ -75,7 +81,17 @@ final class IosViewSharingSessionImpl: NSObject, IosViewSharingSessionBridge {
     private var status: ((CameraPhase, String) -> Void)?
     private var iceServers: [RTCIceServer] = []
     var onStateChanged: ((Bool, CameraPhase, String) -> Void)?
+    private let remoteProbe = RemoteFrameProbe()
+    private var remoteFrameEvidence = "No remote frames"
+    var onRemoteFrameEvidence: ((String) -> Void)?
 
+
+    override init() {
+        super.init()
+        remoteProbe.onEvidence = { [weak self] evidence in
+            Task { @MainActor in self?.updateRemoteFrameEvidence(evidence) }
+        }
+    }
 
     func start(
         servers: [IceServer],
@@ -93,6 +109,8 @@ final class IosViewSharingSessionImpl: NSObject, IosViewSharingSessionBridge {
         self.status = status
         active = true
         publish(.starting, "Starting view sharing")
+        remoteProbe.reset()
+        updateRemoteFrameEvidence("No remote frames")
         guard capture.renderView != nil else {
             fail("Shared view is unavailable")
             return
@@ -163,12 +181,18 @@ final class IosViewSharingSessionImpl: NSObject, IosViewSharingSessionBridge {
         let view = IosSharingVideoView(onSwap: onSwap)
         views.append(view)
         view.setRemoteTrack(remoteTrack)
+        view.setRemoteFrameEvidence(remoteFrameEvidence)
         return view
     }
 
     func showOpponent(_ opponent: Bool, in view: IosSharingVideoView) {
         view.showOpponent(opponent)
         view.setLocalTrack(opponent ? localTrack : nil)
+    }
+    func releaseVideoView(_ view: IosSharingVideoView) {
+        guard let index = views.firstIndex(where: { $0 === view }) else { return }
+        views.remove(at: index)
+        view.release()
     }
 
     private func createPeer() throws {
@@ -248,8 +272,15 @@ final class IosViewSharingSessionImpl: NSObject, IosViewSharingSessionBridge {
 
     private func setRemoteTrack(_ track: RTCVideoTrack?) {
         guard remoteTrack !== track else { return }
+        remoteTrack?.remove(remoteProbe)
         remoteTrack = track
+        track?.add(remoteProbe)
         views.forEach { $0.setRemoteTrack(track) }
+        if track == nil {
+            updateRemoteFrameEvidence("No remote frames")
+        } else {
+            updateRemoteFrameEvidence("Waiting for remote frames")
+        }
     }
 
     private func fail(_ message: String) {
@@ -263,6 +294,11 @@ final class IosViewSharingSessionImpl: NSObject, IosViewSharingSessionBridge {
     private func publish(_ phase: CameraPhase, _ message: String) {
         onStateChanged?(active, phase, message)
         status?(phase, message)
+    }
+    private func updateRemoteFrameEvidence(_ evidence: String) {
+        remoteFrameEvidence = evidence
+        views.forEach { $0.setRemoteFrameEvidence(evidence) }
+        onRemoteFrameEvidence?(evidence)
     }
 
     fileprivate func peerFailed(_ message: String, generation epoch: Int) {
@@ -300,6 +336,50 @@ private struct CandidatePayload: Codable {
 private enum SharingError: Error {
     case connectionUnavailable
 }
+private final class RemoteFrameProbe: NSObject, RTCVideoRenderer {
+    var onEvidence: ((String) -> Void)?
+    private let lock = NSLock()
+    private var frameCount = 0
+
+    func reset() {
+        lock.lock()
+        frameCount = 0
+        lock.unlock()
+    }
+
+    func setSize(_ size: CGSize) {}
+
+    func renderFrame(_ frame: RTCVideoFrame?) {
+        guard let frame else { return }
+        lock.lock()
+        frameCount += 1
+        let count = frameCount
+        lock.unlock()
+        guard count == 1 || count.isMultiple(of: 8) else { return }
+        let buffer = frame.buffer.toI420()
+        let width = Int(buffer.width)
+        let height = Int(buffer.height)
+        let stride = Int(buffer.strideY)
+        guard width > 0, height > 0, stride >= width else { return }
+        let luma = buffer.dataY
+        var checksum: UInt64 = 14_695_981_039_346_656_037
+        var low: UInt8 = 255
+        var high: UInt8 = 0
+        for row in 0..<12 {
+            let y = row * (height - 1) / 11
+            for column in 0..<16 {
+                let x = column * (width - 1) / 15
+                let value = luma[y * stride + x]
+                low = min(low, value)
+                high = max(high, value)
+                checksum = (checksum ^ UInt64(value)) &* 1_099_511_628_211
+            }
+        }
+        let value = "frames=\(count); size=\(width)x\(height); luma=\(low)-\(high); checksum=\(String(checksum, radix: 16))"
+        onEvidence?(value)
+    }
+}
+
 
 private final class BoardFrameCapturer: NSObject {
     weak var renderView: ARView?
@@ -405,6 +485,9 @@ final class IosSharingVideoView: UIView {
         super.init(frame: .zero)
         clipsToBounds = true
         remoteView.videoContentMode = .scaleAspectFit
+        remoteView.isAccessibilityElement = true
+        remoteView.accessibilityIdentifier = "iosRemoteFrameEvidence"
+        remoteView.accessibilityValue = "No remote frames"
         remoteView.accessibilityLabel = "Opponent view"
         localView.videoContentMode = .scaleAspectFill
         addSubview(remoteView)
@@ -427,6 +510,9 @@ final class IosSharingVideoView: UIView {
         remoteTrack?.remove(remoteView)
         remoteTrack = track
         track?.add(remoteView)
+    }
+    fileprivate func setRemoteFrameEvidence(_ value: String) {
+        remoteView.accessibilityValue = value
     }
 
     func showOpponent(_ opponent: Bool) {

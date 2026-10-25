@@ -11,6 +11,7 @@ interface IosViewSharingBridge {
     fun open(): IosViewSharingSessionBridge
     fun makeView(onSwap: () -> Unit): UIView
     fun showOpponent(opponent: Boolean, view: UIView)
+    fun releaseView(view: UIView)
 }
 
 interface IosViewSharingSessionBridge {
