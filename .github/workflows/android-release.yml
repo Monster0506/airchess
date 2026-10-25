@@ -53,7 +53,7 @@ jobs:
           echo "VERSION_NAME=1.0.$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
       - name: Test and build signed APK
         run: |
-          sh ./gradlew :chess:test :protocol:test :server:test :app:testDebugUnitTest :app:assembleRelease \
+          sh ./gradlew :chess:jvmTest :protocol:jvmTest :shared:testAndroidHostTest :server:test :app:testDebugUnitTest :app:assembleRelease \
             --console=plain --no-configuration-cache \
             "-Pairchess.serverUrl=$AIRCHESS_SERVER_URL" \
             "-Pairchess.versionCode=$VERSION_CODE" \
