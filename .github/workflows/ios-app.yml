@@ -5,6 +5,7 @@ on:
     branches:
       - feat/ios-app
       - feat/ios
+      - feat/ios-share
   workflow_dispatch:
 
 permissions:
@@ -21,6 +22,9 @@ jobs:
     env:
       AIRCHESS_SF_CACHE: ${{ github.workspace }}/.cache/stockfish
       RESULT_DIR: ${{ github.workspace }}/build/ios-app
+      AIRCHESS_SMOKE_ROOM_FILE: ${{ github.workspace }}/build/ios-app/smoke/room.txt
+      AIRCHESS_SMOKE_RESULT_FILE: ${{ github.workspace }}/build/ios-app/smoke/result.json
+      AIRCHESS_SMOKE_SCREENSHOT: ${{ github.workspace }}/build/ios-app/smoke/browser-peer.png
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -103,10 +107,14 @@ jobs:
           xcrun simctl boot "$udid"
           xcrun simctl bootstatus "$udid" -b
 
-      # Unsigned: the simulator needs no signing, and CI has no team.
-      - name: Build and run the UI tests
+      - name: Build and run UI and browser RTC smoke tests
         run: |
-          mkdir -p "$RESULT_DIR"
+          mkdir -p "$RESULT_DIR/smoke"
+          ./gradlew :server:installDist
+          npm --prefix ios/smoke install --no-package-lock
+          npx --prefix ios/smoke playwright install chromium
+          npm --prefix ios/smoke run smoke > "$RESULT_DIR/smoke/browser-peer.log" 2>&1 &
+          smoke_pid=$!
           set +e
           xcodebuild test \
             -project iosApp/AirChess.xcodeproj \
@@ -115,10 +123,21 @@ jobs:
             -derivedDataPath build/ios-derived \
             -resultBundlePath "$RESULT_DIR/AirChess.xcresult" \
             CODE_SIGNING_ALLOWED=NO \
+            AIRCHESS_SERVER_URL=ws://127.0.0.1:18080/ws \
             > "$RESULT_DIR/xcodebuild.log" 2>&1
           status=$?
+          if [ "$status" -eq 0 ]; then
+            wait "$smoke_pid"
+            smoke_status=$?
+          else
+            kill "$smoke_pid" 2>/dev/null || true
+            smoke_status=1
+          fi
+          set -e
           tail -n 120 "$RESULT_DIR/xcodebuild.log"
-          exit $status
+          tail -n 120 "$RESULT_DIR/smoke/browser-peer.log"
+          if [ "$status" -ne 0 ]; then exit "$status"; fi
+          exit "$smoke_status"
 
       - name: Extract screenshots
         if: always()
@@ -147,6 +166,14 @@ jobs:
           if [ -d "$RESULT_DIR/AirChess.xcresult" ]; then
             ditto -c -k --sequesterRsrc --keepParent "$RESULT_DIR/AirChess.xcresult" "$RESULT_DIR/AirChess.xcresult.zip"
           fi
+      - name: Zip the simulator app
+        if: always()
+        run: |
+          app="build/ios-derived/Build/Products/Debug-iphonesimulator/AirChess.app"
+          if [ -d "$app" ]; then
+            ditto -c -k --sequesterRsrc --keepParent "$app" "$RESULT_DIR/AirChess.app.zip"
+          fi
+
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -154,6 +181,20 @@ jobs:
           name: ios-app-screenshots
           path: build/ios-app/screenshots
           if-no-files-found: warn
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-app-simulator-app
+          path: build/ios-app/AirChess.app.zip
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-app-webrtc-smoke
+          path: build/ios-app/smoke
+          if-no-files-found: warn
+
 
       - uses: actions/upload-artifact@v4
         if: always()

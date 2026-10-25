@@ -15,6 +15,8 @@ final class ArSession: NSObject, ObservableObject {
     private let scene: BoardScene
     private let listener: BoardListener
     private weak var arView: ARView?
+    var onViewReady: ((ARView?) -> Void)?
+
 
     private let reticleAnchor = AnchorEntity(world: .zero)
     private var boardAnchor: AnchorEntity?
@@ -49,6 +51,35 @@ final class ArSession: NSObject, ObservableObject {
 
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
         arView.addGestureRecognizer(tap)
+        onViewReady?(arView)
+    }
+
+
+    func pause() {
+        arView?.session.pause()
+    }
+
+    func resume() {
+        guard let arView else { return }
+        let configuration = ARWorldTrackingConfiguration()
+        configuration.planeDetection = [.horizontal]
+        arView.session.run(configuration)
+    }
+
+    func detach() {
+        guard let arView else { return }
+        arView.session.pause()
+        arView.gestureRecognizers?.forEach(arView.removeGestureRecognizer)
+        scene.root.removeFromParent()
+        arView.scene.removeAnchor(reticleAnchor)
+        if let boardAnchor {
+            arView.scene.removeAnchor(boardAnchor)
+        }
+        if let arAnchor {
+            arView.session.remove(anchor: arAnchor)
+        }
+        self.arView = nil
+        onViewReady?(nil)
     }
 
     func fail(_ error: Error) {

@@ -53,7 +53,11 @@ final class BoardScene {
     private var ringSpan: Float { layout.squareSize * Self.ringHalf * 2 }
     private var ringBarWidth: Float { layout.squareSize * Self.ringBar }
 
-    init(layout: BoardLayout, assets: BoardAssets = .shared) {
+    init(
+        layout: BoardLayout,
+        assets: BoardAssets = .shared,
+        onFailure: @escaping (String) -> Void = { _ in }
+    ) {
         self.layout = layout
         self.assets = assets
         self.driver = MotionDriver(layout: layout)
@@ -64,11 +68,15 @@ final class BoardScene {
         buildTapBodies()
 
         Task {
-            await assets.ready()
-            self.attachBoardModel()
-            self.assetsReady = true
-            if let frame = self.latest {
-                self.sync(frame)
+            do {
+                try await assets.ready()
+                self.attachBoardModel()
+                self.assetsReady = true
+                if let frame = self.latest {
+                    self.sync(frame)
+                }
+            } catch {
+                onFailure(error.localizedDescription)
             }
         }
     }

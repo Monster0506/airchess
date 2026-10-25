@@ -9,22 +9,22 @@ final class BoardAssets {
     static let shared = BoardAssets()
 
     private var prototypes: [String: Entity] = [:]
-    private var loading: Task<Void, Never>?
+    private var loading: Task<Void, Error>?
 
     private static let boardName = "board"
 
     private init() {}
 
     /// Starts loading on first call; every caller waits for the same load.
-    func ready() async {
+    func ready() async throws {
         if let loading {
-            await loading.value
+            try await loading.value
             return
         }
 
-        let task = Task { await self.loadAll() }
+        let task = Task { try await self.loadAll() }
         loading = task
-        await task.value
+        try await task.value
     }
 
     func makeBoard() -> Entity? {
@@ -35,7 +35,7 @@ final class BoardAssets {
         prototypes[Self.modelName(kind: kind, side: side)]?.clone(recursive: true)
     }
 
-    private func loadAll() async {
+    private func loadAll() async throws {
         var names = [Self.boardName]
         for side in [PieceSide.white, PieceSide.black] {
             for kind in Self.allKinds {
@@ -44,21 +44,34 @@ final class BoardAssets {
         }
 
         for name in names {
-            await load(name)
+            try await load(name)
         }
     }
 
-    private func load(_ name: String) async {
+    private func load(_ name: String) async throws {
         guard let url = Self.url(for: name) else {
-            print("[AirChess] missing model \(name).usdz")
-            return
+            throw BoardAssetError.missing(name)
         }
 
         do {
             let node = try await ModelNode.load(contentsOf: url, enableCollision: false)
             prototypes[name] = node.entity
         } catch {
-            print("[AirChess] could not load \(name).usdz: \(error)")
+            throw BoardAssetError.load(name, error)
+        }
+    }
+
+    private enum BoardAssetError: LocalizedError {
+        case missing(String)
+        case load(String, Error)
+
+        var errorDescription: String? {
+            switch self {
+            case .missing(let name):
+                return "Missing board model: \(name).usdz"
+            case .load(let name, let error):
+                return "Could not load \(name).usdz: \(error.localizedDescription)"
+            }
         }
     }
 

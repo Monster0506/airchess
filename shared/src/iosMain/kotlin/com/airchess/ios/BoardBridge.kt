@@ -111,6 +111,12 @@ interface BoardController {
 
     fun render(frame: BoardFrame)
 
+    fun pause()
+
+    fun resume()
+
+    fun dispose()
+
     /** AR only: drop the anchor and return to surface placement. */
     fun resetPlacement()
 }
