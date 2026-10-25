@@ -88,7 +88,7 @@ private struct SharedAppController: UIViewControllerRepresentable {
     let boardFactory: BoardControllerFactoryImpl
 
     func makeUIViewController(context: Context) -> UIViewController {
-        MainViewControllerKt.mainViewController(
+        MainViewControllerKt.MainViewController(
             viewModel: viewModel,
             boardSurface: IosBoardSurface(factory: boardFactory)
         )
