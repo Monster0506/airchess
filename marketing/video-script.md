@@ -2,7 +2,7 @@
 
 Draft 3. Target runtime 2:40 (hard cap 3:00). Master in 16:9 at 1920x1080; a 9:16 cutdown follows from the same footage.
 
-**Production constraint:** one person, one phone (Pixel), one laptop with a webcam, two locations filmed one after the other. The video stages two players on two phones by shooting the same rehearsed game twice, once at each table, then cutting the two takes together. Every frame is a real app recording; only the side-by-side and Share view layouts are assembled in the edit.
+**Production constraint:** one person, one phone (Pixel), one laptop, two locations filmed one after the other. The video stages two players on two phones by shooting the same rehearsed game twice, once at each table, then cutting the two takes together. Every frame is a real app recording; only the side-by-side and Share view layouts are assembled in the edit.
 
 ## Concept
 
@@ -19,7 +19,7 @@ Draft 3. Target runtime 2:40 (hard cap 3:00). Master in 16:9 at 1920x1080; a 9:1
 |---|---|---|---|---|
 | 0:00-0:06 | Cold open. Screen POV sweeps slowly over a wooden kitchen table. The placement outline locks on. A tap. | Pixel recording | None. Music in. | |
 | 0:06-0:12 | The board and all 32 pieces settle onto the table. Hold. | Pixel recording | "Your table is the board." | **Your table is the board.** |
-| 0:12-0:22 | Wide shot: you walk around the table holding the phone up. Cut to screen POV leaning in close to the pieces. | Webcam (laptop on the counter, facing the table), then Pixel | "AirChess puts a full-size chess set on any table, desk, or floor. Walk around it. Lean in. It stays right where you put it." | |
+| 0:12-0:22 | Screen POV: walk a slow circle around the table; the board stays put and shows itself from every side. Then lean in close to the pieces. | Pixel recording | "AirChess puts a full-size chess set on any table, desk, or floor. Walk around it. Lean in. It stays right where you put it." | |
 | 0:22-0:35 | Tap a knight; legal-move dots light up; the piece glides. A capture. Castling. A pawn promotes; the picker opens; choose a queen. | Pixel recording | "Tap a piece and its moves light up. Tap a square and it glides there. Every rule is handled for you, so all you think about is the game." | |
 | 0:35-0:50 | Tap **Hint**: a glowing arrow appears across the board with an evaluation. Toggle threat view; attacked pieces glow. | Pixel recording | "Stuck? Tap Hint. Stockfish, one of the strongest chess engines ever built, draws its best move right across your board, and shows you what's under attack." | **A coach on your table** |
 | 0:50-1:05 | Home screen, **Play the computer**: pick Black, Hard. Stockfish replies on the board. A blunder; tap **Undo**; the round rewinds. | Pixel recording | "Want a challenge? Pick a side, pick a level, and take on the computer. Made a mistake? Undo it and try again." | Easy · Medium · Hard · Max |
@@ -44,7 +44,6 @@ Cold open (0:00-0:12), the hint arrow (0:35-0:42), Sam joining (1:10-1:20), Shar
 |---|---|---|
 | Pixel | The on-camera player: Alex in take A, Sam in take B | Android's built-in screen recorder (no time limit) |
 | Laptop browser | The offscreen opponent in each take, playing the other player's moves from the move list; also the browser beat at 2:10 | OBS Studio (free) |
-| Laptop webcam | The one wide shot of you walking around the kitchen table (0:12) | OBS, as a camera source |
 
 ### The two-take method
 
@@ -80,12 +79,11 @@ Recommended: a small "Dramatization. Screens recorded separately." note during t
 3. Two locations that look like two different homes: the kitchen table for Alex, and a desk in another room for Sam, with different light and surroundings.
 4. Good, even light. AR tracking and the look both suffer in dim rooms.
 5. Do Not Disturb on the Pixel and laptop. Close other browser tabs and hide the bookmarks bar. Status bar clean, battery charged.
-6. Webcam: set the laptop on the counter, framed wide on the kitchen table, before you start. Lock exposure if your webcam app allows it.
 
 ### Recording sessions
 
 1. **Solo AR (kitchen table):** every shot from 0:00 to 1:05, on the Pixel's built-in recorder. Do several takes of the cold open.
-2. **Webcam wide shot:** start OBS webcam recording, then walk around the table with the board placed, phone up, for about 30 seconds. Record the Pixel at the same time so you can cut between the two angles.
+2. **Walk around:** with the board placed, walk a slow circle around the table, phone up, for about 30 seconds, then lean in close to the pieces. Pixel recorder only.
 3. **Take A (kitchen):** Pixel recorder running, OBS recording the browser. Create the game on the Pixel, share the invite, open it in the browser. Turn on Share view on both sides. Play the move list; offer a draw from the browser and decline it on the Pixel; deliver checkmate; rematch. Screenshot the Pixel's Share view screen for the layout template.
 4. **Take B (desk):** create a game in the browser as White. On the Pixel, open **Play a friend online**, tap **Join**, type the code, and place the board on the desk. Turn on Share view on both sides. Play the same move list as Black.
 5. **Resume:** close the app mid-game on the Pixel, reopen, tap **Resume game**.
@@ -96,7 +94,7 @@ Recommended: a small "Dramatization. Screens recorded separately." note during t
 
 - Edit in any video editor (DaVinci Resolve is free). Cut on piece landings and music beats.
 - Captions burned in and readable on a phone: sans-serif, at least 48 px at 1080p, inside safe margins.
-- Blur or crop anything personal in AR and webcam shots: mail, screens, photos, house numbers.
+- Blur or crop anything personal in AR shots: mail, screens, photos, house numbers.
 - Exports: 16:9 1080p master (YouTube, website) and 9:16 1080x1920 cutdown (Reels, TikTok, Shorts), H.264 and AAC, under 3:00.
 
 ### Claims check

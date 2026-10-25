@@ -25,7 +25,7 @@ Use the Pixel's built-in screen recorder unless noted. Do Not Disturb on.
 | # | Shot | Script | Where | Notes |
 |---|---|---|---|---|
 | 1 | Cold open: sweep, outline locks, tap, board settles (several takes) | 0:00-0:12 | Kitchen | Hero shot. Slow, steady. |
-| 2 | Walk around the placed board | 0:12-0:22 | Kitchen | Laptop webcam wide (OBS) **and** Pixel recording at the same time |
+| 2 | Walk around the placed board | 0:12-0:22 | Kitchen | Slow circle; the board stays anchored and shows from every side |
 | 3 | Lean in close to the pieces | 0:12-0:22 | Kitchen | |
 | 4 | Touch the pieces, castling, capture | 0:22-0:35 | Kitchen | Play on the table; moves in `moves.md` |
 | 5 | Promotion with the picker | 0:30 | Kitchen | After Reset; `moves.md` |
