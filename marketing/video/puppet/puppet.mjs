@@ -2,7 +2,7 @@
 // AirChess video puppet: drives ONE side of an online game in the web client
 // through a visible browser window (or --headless). Logs every ply. See README.md.
 
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import puppeteer from 'puppeteer-core';
@@ -17,7 +17,7 @@ const BOOLEAN_FLAGS = new Set([
   'create', 'headless', 'decline-draws', 'accept-rematch', 'offer-rematch', 'share', 'open-stage', 'help',
 ]);
 const VALUE_FLAGS = new Set([
-  'server', 'name', 'join', 'color', 'time', 'moves', 'delay', 'offer-draw-after', 'browser', 'width', 'height',
+  'server', 'name', 'join', 'color', 'time', 'moves', 'delay', 'offer-draw-after', 'browser', 'width', 'height', 'record',
 ]);
 
 const USAGE = `Usage: node puppet.mjs --server <your server URL> (--create | --join <CODE>) [options]
@@ -39,6 +39,7 @@ Options:
   --accept-rematch               Accept a rematch the opponent offers
   --share                        Turn on "Share view" once the game has started
   --open-stage                   Open the opponent's shared view full screen when it arrives
+  --record <file.webm>           Save the opponent's shared view stream (the phone's clean AR view) to a file
   --headless                     No visible window (for tests)
   --browser <exe>                Browser executable (default: Microsoft Edge)
   --width <px> / --height <px>   Window size (default 1600 x 1000)
@@ -162,6 +163,7 @@ function buildConfig(opts) {
     share: Boolean(opts.share),
     openStage: Boolean(opts.openStage),
     headless: Boolean(opts.headless),
+    record: opts.record ?? null,
     browser,
     width: integer(opts.width ?? '1600', 'width', 300),
     height: integer(opts.height ?? '1000', 'height', 300),
@@ -209,6 +211,21 @@ function setValue(selector, value) {
 
 function clickSelector(selector) {
   document.querySelector(selector).click();
+}
+
+function startRecording() {
+  const stream = document.getElementById('stageRemoteVideo').srcObject;
+  const type = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find((t) => MediaRecorder.isTypeSupported(t));
+  const rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 8_000_000 });
+  rec.ondataavailable = async (event) => {
+    if (!event.data.size) return;
+    const bytes = new Uint8Array(await event.data.arrayBuffer());
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    await window.__puppetChunk(btoa(binary));
+  };
+  rec.start(1000);
+  window.__puppetRecorder = rec;
 }
 
 function pressSquare(square) {
@@ -279,10 +296,21 @@ async function main() {
     args: [`--window-size=${cfg.width},${cfg.height}`, '--no-first-run', '--no-default-browser-check'],
   });
 
+  let page;
   let closing = false;
   const shutdown = async (code) => {
     if (closing) return;
     closing = true;
+    if (cfg.record) {
+      // Flush the recorder's last chunk before the browser goes away.
+      await page?.evaluate(() => new Promise((resolve) => {
+        const rec = window.__puppetRecorder;
+        if (!rec || rec.state === 'inactive') return resolve();
+        rec.onstop = () => setTimeout(resolve, 300);
+        rec.stop();
+      })).catch(() => {});
+      log('RECORD', `saved opponent view to ${cfg.record}`);
+    }
     await browser.close().catch(() => {});
     try {
       rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
@@ -302,7 +330,11 @@ async function main() {
     }
   });
 
-  const page = (await browser.pages())[0] ?? (await browser.newPage());
+  page = (await browser.pages())[0] ?? (await browser.newPage());
+  if (cfg.record) {
+    writeFileSync(cfg.record, Buffer.alloc(0));
+    await page.exposeFunction('__puppetChunk', (b64) => appendFileSync(cfg.record, Buffer.from(b64, 'base64')));
+  }
   page.setDefaultTimeout(30000);
   page.on('pageerror', (err) => log('ERROR', `page script error: ${err.message}`));
   page.on('dialog', (dialog) => {
@@ -531,6 +563,11 @@ async function main() {
         st.stageFor = true;
         await page.evaluate(clickSelector, '#camera-board');
         log('STAGE', 'opened the opponent view full screen');
+      }
+      if (cfg.record && !st.recording) {
+        st.recording = true;
+        await page.evaluate(startRecording);
+        log('RECORD', `recording opponent view to ${cfg.record}`);
       }
     } else {
       st.remoteLive = false;

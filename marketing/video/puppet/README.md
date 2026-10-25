@@ -21,22 +21,22 @@ Edge is used by default (`C:/Program Files (x86)/Microsoft/Edge/Application/msed
 1. Phone (Alex, White) creates the room and reads out the code.
 2. Browser:
    ```
-   node puppet.mjs --server <your server URL> --name Sam --join <CODE> --moves moves/legal-mate.txt --offer-draw-after 8 --accept-rematch --share --open-stage
+   node puppet.mjs --server <your server URL> --name Sam --join <CODE> --moves moves/legal-mate.txt --offer-draw-after 8 --accept-rematch --share --open-stage --record ../assets/phone/take-a-alex-view.webm
    ```
 3. Phone plays the White column of `../moves.md`. Once the game starts, tap **Share view** on the phone too.
 
-The browser offers a draw right after 4...g6 (ply 8), and the phone declines it. After checkmate the phone offers a rematch, and the browser accepts it. With `--open-stage` the browser opens the phone's shared view full screen when it arrives: record that browser window with OBS. It is Alex's clean AR view (camera plus board, no app buttons) for the Share view composite.
+The browser offers a draw right after 4...g6 (ply 8), and the phone declines it. After checkmate the phone offers a rematch, and the browser accepts it. With `--record`, the browser saves the phone's shared view (Alex's clean AR view: camera plus board, no app buttons) to the file as it arrives, for the Share view composite. No OBS needed.
 
 ## Take B (desk): browser is Alex (White), phone is Sam (Black)
 
 1. Browser:
    ```
-   node puppet.mjs --server <your server URL> --name Alex --create --color WHITE --moves moves/legal-mate.txt --decline-draws --offer-rematch --share --open-stage
+   node puppet.mjs --server <your server URL> --name Alex --create --color WHITE --moves moves/legal-mate.txt --decline-draws --offer-rematch --share --open-stage --record ../assets/phone/take-b-sam-view.webm
    ```
    The room code prints in a banner. Read it to the phone.
 2. Phone (Sam, Black) joins with that code, places the board on the desk, taps **Share view**, and plays the Black column of `../moves.md`, tapping **Draw** right after 4...g6.
 
-The browser declines the draw and mates the phone's Black. After checkmate it offers a rematch, which the phone accepts. Record the browser's full-screen stage with OBS: it is Sam's clean AR view, used full screen in the Share view composite.
+The browser declines the draw and mates the phone's Black. After checkmate it offers a rematch, which the phone accepts. The recording is Sam's clean AR view, used full screen in the Share view composite.
 
 Both takes use the 5+0 time control (`300,0`, the default) and a 3-second delay before each of the puppet's moves.
 
@@ -57,6 +57,7 @@ Both takes use the 5+0 time control (`300,0`, the default) and a 3-second delay 
 | `--accept-rematch` | Accept a rematch the opponent offers. |
 | `--share` | Turn on "Share view" once the game starts. |
 | `--open-stage` | Open the opponent's shared view full screen when it arrives. |
+| `--record <file.webm>` | Save the opponent's shared view stream to a file (VP9/VP8 WebM, about 8 Mbit/s). Convert with `ffmpeg -i in.webm -vf fps=30 -c:v libx264 -crf 18 out.mp4`. |
 | `--headless` | No visible window (for tests). |
 | `--browser <exe>` | Browser executable (default Edge). |
 | `--width <px>` / `--height <px>` | Window size (default 1600 x 1000). |

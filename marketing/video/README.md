@@ -52,7 +52,7 @@ Optional: a real phone "message received" shot instead of `invite-bubble.png`.
 
 ## Known caveats
 
-- **Server URL on screen:** the Play online sheet and Settings show the hosted server address. Blur that field in any shot that shows it (emulator `online-create`, `online-join`, `settings`, and the lobby in takes A and B).
+- **Server URL on screen:** the Play online sheet and Settings show the hosted server address. That is accepted; no blur needed.
 - **Emulator clips are UI only:** no AR and no Stockfish there (no x86 engine), so the board behind sheets is 3D. In `online-join.mp4` the name field reads "Alex"; use it only for the code-typing close-up, or re-shoot the join on the Pixel in take B.
 - **`stage-template.png`** is an earlier real Share view screenshot, not a fresh capture. Replace it with the one you take in take A.
 - **`invite-bubble.png`** shows code K7Q2MD, which won't match the real code in take B. Keep it on screen briefly, before the cut to the phone.
