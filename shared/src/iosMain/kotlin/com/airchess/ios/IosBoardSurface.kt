@@ -17,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.key
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,13 +45,14 @@ class IosBoardSurface(private val factory: BoardControllerFactory) : BoardSurfac
         var permissionPrompt by remember { mutableStateOf(false) }
         val gate = decideArGate(support, camera, state.prefer3d, failure != null)
 
+        val activeController = controller
         LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
             camera = factory.cameraAccess()
             support = if (factory.arSupported) ArSupport.READY else ArSupport.UNSUPPORTED
-            controller?.resume()
+            activeController?.resume()
         }
         LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
-            controller?.pause()
+            activeController?.pause()
         }
         LaunchedEffect(gate) {
             if (gate == ArGateScreen.AR || gate == ArGateScreen.BOARD_3D) {
@@ -79,10 +81,12 @@ class IosBoardSurface(private val factory: BoardControllerFactory) : BoardSurfac
         Box(modifier.fillMaxSize()) {
             val current = controller
             if (failure == null && current != null && (gate == ArGateScreen.AR || gate == ArGateScreen.BOARD_3D)) {
-                UIKitViewController(
-                    factory = { current.viewController },
-                    modifier = Modifier.fillMaxSize(),
-                )
+                key(current) {
+                    UIKitViewController(
+                        factory = { current.viewController },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             } else {
                 GateContent(
                     screen = gate,
@@ -104,7 +108,8 @@ class IosBoardSurface(private val factory: BoardControllerFactory) : BoardSurfac
         }
 
         DisposableEffect(controller) {
-            onDispose { controller?.dispose() }
+            val ownedController = controller
+            onDispose { ownedController?.dispose() }
         }
     }
 
