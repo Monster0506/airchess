@@ -87,3 +87,15 @@ ssh "$HOST" 'sudo mkdir -p /opt/airchess && sudo rm -rf /opt/airchess/server \
 ```
 
 Restarting ends all live games. Logs: `ssh "$HOST" journalctl -u airchess -f`.
+
+## Browser client
+
+The responsive 2D/3D chess client is served at `/play/`. It supports local pass-and-play, browser
+Stockfish games and online rooms using the same `/ws` protocol as the app. To try it locally, run
+the server and open `http://localhost:8080/play/`. The client saves your name and online resume
+token in browser storage; room state remains owned by the server.
+
+The build copies the twelve chess-piece GLBs and board GLB from
+`app/src/main/assets/models/` into `web/models/` in the server resources, without checking model
+copies into source control. Browser libraries and their license files are under `web/vendor/`;
+versions and license details are recorded in the repository-root `ATTRIBUTIONS.md`.
