@@ -2,32 +2,32 @@
   {
     "id": "01",
     "start": 6.0,
-    "slot": 4.6,
-    "text": "Your table is the board."
+    "slot": 3.6,
+    "text": "This is AirChess."
   },
   {
     "id": "02",
-    "start": 10.9,
-    "slot": 9.4,
+    "start": 9.8,
+    "slot": 10.9,
     "text": "AirChess puts a full-size chess set on any table, desk, or floor. Walk around it. Lean in. It stays right where you put it."
   },
   {
     "id": "03",
-    "start": 20.3,
-    "slot": 11.6,
-    "text": "Tap a piece and its moves light up. Tap a square and it glides there. Every rule is handled for you, so all you think about is the game."
+    "start": 20.7,
+    "slot": 11.2,
+    "text": "Tap a piece and its moves light up. Tap a square and it glides there."
   },
   {
     "id": "04",
     "start": 32.3,
     "slot": 10.6,
-    "text": "Stuck? Tap Hint. Stockfish, one of the strongest chess engines ever built, draws its best move right across your board, and shows you what's under attack."
+    "text": "If you're stuck, tap Hint. Stockfish, one of the strongest chess engines ever built, draws its best move right across the board, and shows you what's under attack."
   },
   {
     "id": "05",
     "start": 43.3,
     "slot": 11.6,
-    "text": "Want a challenge? Pick a side, pick a level, and take on the computer. Made a mistake? Undo it and try again."
+    "text": "Want a challenge? Pick a side, pick a level, and take on the computer. If you've made a mistake, you can undo it and try again."
   },
   {
     "id": "06",
@@ -45,19 +45,19 @@
     "id": "08",
     "start": 81.0,
     "slot": 9.6,
-    "text": "And with Share view, you see their board exactly as they do. Their room. Their table. Their move."
+    "text": "And with Share view, you see their board exactly as they do. Their room, their table, their move."
   },
   {
     "id": "09",
     "start": 91.0,
     "slot": 6.1,
-    "text": "Sharing is off until you turn it on, nothing is recorded, and there's no microphone."
+    "text": "Sharing is off until you turn it on, so nothing is recorded, and there's no microphone."
   },
   {
     "id": "10",
     "start": 97.4,
     "slot": 12.5,
-    "text": "Offer a draw. Demand a rematch. Close the app mid-game, and your game is waiting when you come back."
+    "text": "You can offer a draw or demand a rematch, and if you close the app mid-game, your game is waiting when you come back."
   },
   {
     "id": "11",
@@ -69,7 +69,7 @@
     "id": "12",
     "start": 127.1,
     "slot": 3.8,
-    "text": "Any table. Any friend. Any time."
+    "text": "Any table. Anywhere. Any time."
   },
   {
     "id": "13",

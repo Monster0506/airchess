@@ -26,12 +26,15 @@ from PIL import Image, ImageDraw, ImageFont
 W, H, FPS = 1920, 1080, 30
 
 # Music: track time 0 lands at this video second. The track starts with the
-# picture so the cold open is not silent; the lift (track 0:50) lands at 0:50.
-MUSIC_FILE = "music/brothers-unite_nakarada_CC-BY-4.0.mp3"
+# picture so the cold open is not silent; it builds toward a peak near the end card.
+MUSIC_FILE = "music/parhelion_nakarada_CC-BY-4.0.mp3"
 MUSIC_START = 0.0           # video time the track starts (track t=0)
 MUSIC_GAIN = 0.55          # bed level before loudnorm
 MUSIC_FADE_IN = 3.0
 MUSIC_FADE_OUT = 3.0
+VO_OVER_MUSIC_DB = 12.0    # target voice-over-music separation under each line
+DUCK_ATTACK = 0.25         # seconds to ramp the bed down before a line
+DUCK_RELEASE = 0.5         # seconds to ramp it back up after
 LOUDNESS_I = -16.0
 
 WPS = 2.6                  # VO budget: words per second
@@ -126,26 +129,25 @@ SCENES = [
          caps=[("cap", 0.3, 2.6, "Every piece, in 3D.")]),
     dict(id="montage", dur=4.2, kind="phone",
          clips=[("shot02", 1.0, 1.0), ("cleanA", 5.0, 1.0), ("cleanB", 25.0, 1.1), ("shot02", 9.0, 1.1)],
-         caps=[("cap", 0.0, 4.0, "Any table. Any friend.\nAny time.")]),
+         caps=[("cap", 0.0, 4.0, "Any table. Anywhere.\nAny time.")]),
     dict(id="end", dur=5.6, kind="card", img="end-card-16x9.png", caps=[]),
 ]
 
 # VO cues: one per script VO line. start = scene start + offset; slot = max seconds.
 VO = [
-    dict(id="01", scene="cold", offset=6.0, slot=4.6,
-         text="Your table is the board."),
-    dict(id="02", scene="walk", offset=0.3, slot=9.4,
+    dict(id="01", scene="cold", offset=6.0, slot=3.6,
+         text="This is AirChess."),
+    dict(id="02", scene="walk", offset=-0.8, slot=10.9,
          text="AirChess puts a full-size chess set on any table, desk, or floor. "
               "Walk around it. Lean in. It stays right where you put it."),
-    dict(id="03", scene="castle", offset=0.2, slot=11.6,
-         text="Tap a piece and its moves light up. Tap a square and it glides there. "
-              "Every rule is handled for you, so all you think about is the game."),
+    dict(id="03", scene="castle", offset=0.6, slot=11.2,
+         text="Tap a piece and its moves light up. Tap a square and it glides there."),
     dict(id="04", scene="hint", offset=0.2, slot=10.6,
-         text="Stuck? Tap Hint. Stockfish, one of the strongest chess engines ever built, "
-              "draws its best move right across your board, and shows you what's under attack."),
+         text="If you're stuck, tap Hint. Stockfish, one of the strongest chess engines ever built, "
+              "draws its best move right across the board, and shows you what's under attack."),
     dict(id="05", scene="computer", offset=0.2, slot=11.6,
          text="Want a challenge? Pick a side, pick a level, and take on the computer. "
-              "Made a mistake? Undo it and try again."),
+              "If you've made a mistake, you can undo it and try again."),
     dict(id="06", scene="invite", offset=0.2, slot=6.6,
          text="Chess is better with a friend. Create a game, share the code, "
               "and they're in, from anywhere."),
@@ -154,17 +156,17 @@ VO = [
               "live, with real clocks."),
     dict(id="08", scene="share", offset=0.2, slot=9.6,
          text="And with Share view, you see their board exactly as they do. "
-              "Their room. Their table. Their move."),
+              "Their room, their table, their move."),
     dict(id="09", scene="privacy", offset=0.2, slot=6.1,
-         text="Sharing is off until you turn it on, nothing is recorded, and there's no microphone."),
+         text="Sharing is off until you turn it on, so nothing is recorded, and there's no microphone."),
     dict(id="10", scene="decline", offset=0.1, slot=12.5,
-         text="Offer a draw. Demand a rematch. Close the app mid-game, and your game "
-              "is waiting when you come back."),
+         text="You can offer a draw or demand a rematch, and if you close the app mid-game, "
+              "your game is waiting when you come back."),
     dict(id="11", scene="browser", offset=0.2, slot=8.8,
          text="No phone handy? Play right in your browser, in 2D or 3D, "
               "against a friend or the computer."),
     dict(id="12", scene="montage", offset=0.2, slot=3.8,
-         text="Any table. Any friend. Any time."),
+         text="Any table. Anywhere. Any time."),
     dict(id="13", scene="end", offset=0.3, slot=5.0,
          text="AirChess. Chess, wherever you are."),
 ]
@@ -616,6 +618,37 @@ def loudnorm_two_pass(src, dst):
            f"measured_LRA={j['input_lra']}:measured_thresh={j['input_thresh']}:"
            f"offset={j['target_offset']}:linear=true")
     ff("-i", src, "-af", f"loudnorm={lin}", "-ar", "48000", "-ac", "2", dst)
+
+
+def loudness(path, start=None, dur=None):
+    seek = [] if start is None else ["-ss", f"{start:.3f}", "-t", f"{dur:.3f}"]
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", *seek, "-i", str(path),
+                        "-af", "ebur128", "-f", "null", "-"], capture_output=True, text=True, check=True)
+    return float([l for l in r.stderr.splitlines() if l.strip().startswith("I:")][-1].split()[1])
+
+
+def duck_expr(music_wav, vo_dir, present):
+    """Volume expression lowering the bed under each line just enough for the target
+    separation; the track builds, so a fixed compressor under-ducks the loud end."""
+    terms = []
+    for c in present:
+        dur = probe_dur(vo_dir / f"vo-{c['id']}.wav")
+        need = loudness(vo_dir / f"vo-{c['id']}.wav") - VO_OVER_MUSIC_DB
+        cut = max(0.0, loudness(music_wav, c["start"], dur) - need)
+        if cut <= 0:
+            continue
+        a, b = c["start"] - DUCK_ATTACK, c["start"] + dur
+        ramp = (f"clip(min((t-{a:.3f})/{DUCK_ATTACK},({b + DUCK_RELEASE:.3f}-t)/{DUCK_RELEASE}),0,1)")
+        terms.append(f"{1 - 10 ** (-cut / 20):.4f}*{ramp}")
+        print(f"duck VO{c['id']}: -{cut:.1f} dB")
+    if not terms:
+        return "1"
+    depth = terms[0]
+    for t in terms[1:]:
+        depth = f"max({depth},{t})"
+    return f"1-{depth}"
+
+
 def stage_mix(vo_dir):
     audio = WORK / "audio"
     audio.mkdir(parents=True, exist_ok=True)
@@ -653,10 +686,12 @@ def stage_mix(vo_dir):
 
     mix = audio / "mix.wav"
     if vo_wav:
-        fc = ("[0:a][1:a]sidechaincompress=threshold=0.02:ratio=8:attack=20:release=500[duck];"
-              "[duck][1:a]amix=inputs=2:duration=first:normalize=0[aout]")
+        ducked = audio / "music-ducked.wav"
+        ff("-i", music_wav, "-af", f"volume=eval=frame:volume='{duck_expr(music_wav, vo_dir, present)}'",
+           "-ar", "48000", "-ac", "2", ducked)
         pre = audio / "pre-norm.wav"
-        ff("-i", music_wav, "-i", vo_wav, "-filter_complex", fc, "-map", "[aout]",
+        ff("-i", ducked, "-i", vo_wav, "-filter_complex",
+           "[0:a][1:a]amix=inputs=2:duration=first:normalize=0[aout]", "-map", "[aout]",
            "-ar", "48000", "-ac", "2", pre)
     else:
         pre = music_wav

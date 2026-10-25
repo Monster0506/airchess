@@ -47,11 +47,11 @@ Files: `assets/vo/kokoro/vo-01..13.wav` and `durations.json`. The voice is being
 
 ## Music and attribution
 
-Music bed: `assets/music/brothers-unite_nakarada_CC-BY-4.0.mp3`. Fade in 0–3 s, lift at 0:50, fade out over the last 3 s, ending on the end card.
+Music bed: `assets/music/parhelion_nakarada_CC-BY-4.0.mp3`. Fade in 0–3 s, builds to a peak near the end card, fade out over the last 3 s. The bed is ducked under each voiceover line to 12 dB below the voice.
 
 Attribution for the video description:
 
-> Music: "Brothers Unite" by Alexander Nakarada (https://www.serpentsoundstudios.com). Licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: https://alexandernakarada.bandcamp.com/track/brothers-unite-2
+> Music: "Parhelion" by Alexander Nakarada. Licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: https://creatorchords.com/music/parhelion
 
 ## Pass notes
 
