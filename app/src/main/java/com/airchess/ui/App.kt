@@ -91,9 +91,9 @@ private fun AppContent(viewModel: ChessViewModel) {
         }
     }
 
-    val waiting = state.online?.waitingForOpponent
-    LaunchedEffect(waiting) {
-        if (waiting == false && sheet == Sheet.ONLINE) {
+    val gameStarted = state.online?.let { it.code != null && !it.waitingForOpponent } == true
+    LaunchedEffect(gameStarted) {
+        if (gameStarted && sheet == Sheet.ONLINE) {
             sheet = Sheet.NONE
         }
     }
