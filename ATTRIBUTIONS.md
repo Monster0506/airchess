@@ -9,14 +9,14 @@ The chess pieces and board in `app/src/main/assets/models/` are procedurally gen
 - Library: chess.js 1.4.0, vendored ESM build at `server/src/main/resources/web/vendor/chess.js/`.
 - License: BSD-2-Clause. Copyright (c) 2025 Jeff Hlywa; see the included `LICENSE`.
 - Source: https://github.com/jhlywa/chess.js
-- Size: 104,507 bytes (minification not applied).
+- Size: 107,052 bytes (minification not applied).
 
 ## Browser 3D renderer
 
 - Library: three.js 0.186.1, vendored ES modules plus GLTFLoader, OrbitControls, BufferGeometryUtils, and SkeletonUtils at `server/src/main/resources/web/vendor/three/`.
 - License: MIT. Copyright (c) 2010-2026 three.js authors; see the included `LICENSE`.
 - Source: https://github.com/mrdoob/three.js
-- Size: approximately 2.2 MiB of runtime modules (three.module.js, three.core.js, and used add-ons).
+- Size: approximately 2.4 MiB of runtime modules (three.module.js, three.core.js, and used add-ons).
 
 ## Browser chess engine
 
@@ -24,7 +24,6 @@ The chess pieces and board in `app/src/main/assets/models/` are procedurally gen
 - License: GNU GPL v3.0; complete license text is included as `LICENSE`.
 - Source: https://github.com/nmrugg/stockfish.js
 - Engine assets: 1.8 MiB WASM and 27.6 KiB JavaScript; does not require SharedArrayBuffer or COOP/COEP.
-
 ## Stockfish
 
 - Version: Stockfish 19 (release tag `sf_19`), official `stockfish-android-arm64-universal` build.
