@@ -1,0 +1,4 @@
+module StockfishBridge {
+    header "stockfish_bridge.h"
+    export *
+}
