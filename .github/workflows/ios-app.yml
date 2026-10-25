@@ -107,6 +107,18 @@ jobs:
           xcrun simctl boot "$udid"
           xcrun simctl bootstatus "$udid" -b
 
+      - name: Build simulator app and UI tests
+        run: |
+          mkdir -p "$RESULT_DIR"
+          xcodebuild build-for-testing \
+            -project iosApp/AirChess.xcodeproj \
+            -scheme AirChess \
+            -destination "id=$SIM_UDID" \
+            -derivedDataPath build/ios-derived \
+            CODE_SIGNING_ALLOWED=NO \
+            AIRCHESS_SERVER_URL=ws://127.0.0.1:18080/ws \
+            2>&1 | tee "$RESULT_DIR/xcodebuild-build.log"
+
       - name: Build and run UI and browser RTC smoke tests
         run: |
           mkdir -p "$RESULT_DIR/smoke"
@@ -116,8 +128,9 @@ jobs:
           npm --prefix ios/smoke run smoke > "$RESULT_DIR/smoke/browser-peer.log" 2>&1 &
           smoke_pid=$!
           set +e
-          xcodebuild test \
+          xcodebuild test-without-building \
             -project iosApp/AirChess.xcodeproj \
+            -scheme AirChess \
             -parallel-testing-enabled NO \
             -destination "id=$SIM_UDID" \
             -derivedDataPath build/ios-derived \
@@ -203,4 +216,5 @@ jobs:
           path: |
             build/ios-app/AirChess.xcresult.zip
             build/ios-app/xcodebuild.log
+            build/ios-app/xcodebuild-build.log
           if-no-files-found: warn
