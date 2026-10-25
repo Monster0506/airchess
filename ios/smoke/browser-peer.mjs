@@ -15,6 +15,7 @@ const screenshotFile = resolve(process.env.AIRCHESS_SMOKE_SCREENSHOT || join(roo
 const timeoutMs = Number(process.env.AIRCHESS_SMOKE_TIMEOUT_MS || 180_000);
 const serverBin = resolve(process.env.AIRCHESS_SERVER_BIN || join(root, `server/build/install/server/bin/server${process.platform === 'win32' ? '.bat' : ''}`));
 let serverProcess;
+let browser;
 let page;
 let roomCode;
 let phase = 'starting';
