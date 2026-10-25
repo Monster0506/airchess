@@ -147,12 +147,27 @@ jobs:
           if [ -d "$RESULT_DIR/AirChess.xcresult" ]; then
             ditto -c -k --sequesterRsrc --keepParent "$RESULT_DIR/AirChess.xcresult" "$RESULT_DIR/AirChess.xcresult.zip"
           fi
+      - name: Zip the simulator app
+        if: always()
+        run: |
+          app="build/ios-derived/Build/Products/Debug-iphonesimulator/AirChess.app"
+          if [ -d "$app" ]; then
+            ditto -c -k --sequesterRsrc --keepParent "$app" "$RESULT_DIR/AirChess.app.zip"
+          fi
+
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: ios-app-screenshots
           path: build/ios-app/screenshots
+          if-no-files-found: warn
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-app-simulator-app
+          path: build/ios-app/AirChess.app.zip
           if-no-files-found: warn
 
       - uses: actions/upload-artifact@v4
