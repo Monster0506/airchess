@@ -1,0 +1,165 @@
+name: iOS app
+
+on:
+  push:
+    branches:
+      - feat/ios-app
+      - feat/ios
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    runs-on: macos-15
+    timeout-minutes: 75
+    env:
+      AIRCHESS_SF_CACHE: ${{ github.workspace }}/.cache/stockfish
+      RESULT_DIR: ${{ github.workspace }}/build/ios-app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Select Xcode 26.2
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app
+
+      - name: Toolchain versions
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-version
+
+      - name: Cache Stockfish source and net
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.AIRCHESS_SF_CACHE }}
+          key: stockfish-inputs-${{ hashFiles('ios/stockfish/pins.env') }}
+
+      # Same key as ios-stockfish.yml and ios-shared.yml, so a cache hit skips the C++ build.
+      - name: Cache Stockfish xcframework
+        id: xcframework
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ios/stockfish/build/Stockfish.xcframework
+          key: stockfish-xcframework-${{ hashFiles('ios/stockfish/build.sh', 'ios/stockfish/pins.env', 'ios/stockfish/lib.mk', 'ios/stockfish/patches/**', 'ios/stockfish/src/**', 'ios/stockfish/include/**') }}
+
+      - name: Build Stockfish xcframework
+        if: steps.xcframework.outputs.cache-hit != 'true'
+        run: ios/stockfish/build.sh ios
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+
+      - name: Install Android SDK
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
+
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/feat/ios' }}
+
+      - name: Cache Kotlin/Native toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: konan-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        working-directory: iosApp
+        run: xcodegen generate
+
+      - name: Pick an iPhone simulator
+        run: |
+          xcrun simctl list devices available
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          wanted = ["iPhone 16", "iPhone 17", "iPhone 16 Pro", "iPhone 17 Pro"]
+          found = {}
+          for runtime, items in devices.items():
+              if "iOS" not in runtime:
+                  continue
+              for item in items:
+                  found.setdefault(item["name"], item["udid"])
+          for name in wanted:
+              if name in found:
+                  print(found[name])
+                  break
+          ')
+          test -n "$udid"
+          echo "SIM_UDID=$udid" >> "$GITHUB_ENV"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+
+      # Unsigned: the simulator needs no signing, and CI has no team.
+      - name: Build and run the UI tests
+        run: |
+          mkdir -p "$RESULT_DIR"
+          set +e
+          xcodebuild test \
+            -project iosApp/AirChess.xcodeproj \
+            -scheme AirChess \
+            -destination "id=$SIM_UDID" \
+            -derivedDataPath build/ios-derived \
+            -resultBundlePath "$RESULT_DIR/AirChess.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            > "$RESULT_DIR/xcodebuild.log" 2>&1
+          status=$?
+          tail -n 120 "$RESULT_DIR/xcodebuild.log"
+          exit $status
+
+      - name: Extract screenshots
+        if: always()
+        run: |
+          set -x
+          if [ -d "$RESULT_DIR/AirChess.xcresult" ]; then
+            xcrun xcresulttool export attachments --path "$RESULT_DIR/AirChess.xcresult" --output-path "$RESULT_DIR/attachments"
+            python3 - <<'PY'
+          import json, os, shutil
+          base = os.environ["RESULT_DIR"] + "/attachments"
+          out = os.environ["RESULT_DIR"] + "/screenshots"
+          os.makedirs(out, exist_ok=True)
+          manifest = json.load(open(base + "/manifest.json"))
+          for test in manifest:
+              for item in test.get("attachments", []):
+                  name = item.get("suggestedHumanReadableName", item["exportedFileName"])
+                  stem = name.split("_0_")[0]
+                  shutil.copy(base + "/" + item["exportedFileName"], out + "/" + stem + ".png")
+          PY
+            ls -l "$RESULT_DIR/screenshots"
+          fi
+
+      - name: Zip the result bundle
+        if: always()
+        run: |
+          if [ -d "$RESULT_DIR/AirChess.xcresult" ]; then
+            ditto -c -k --sequesterRsrc --keepParent "$RESULT_DIR/AirChess.xcresult" "$RESULT_DIR/AirChess.xcresult.zip"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-app-screenshots
+          path: build/ios-app/screenshots
+          if-no-files-found: warn
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-app-xcresult
+          path: |
+            build/ios-app/AirChess.xcresult.zip
+            build/ios-app/xcodebuild.log
+          if-no-files-found: warn
