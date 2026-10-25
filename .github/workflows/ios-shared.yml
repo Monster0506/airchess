@@ -6,6 +6,7 @@ on:
       - feat/ios-core
       - feat/ios-engine
       - feat/ios
+      - feat/ios-ui
   workflow_dispatch:
 
 permissions:

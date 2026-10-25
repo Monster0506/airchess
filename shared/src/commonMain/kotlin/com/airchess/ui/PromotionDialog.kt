@@ -15,7 +15,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airchess.chess.ChessColor
@@ -95,12 +94,4 @@ private fun promotionLabel(type: PieceType): String = when (type) {
     PieceType.KNIGHT -> "Knight"
     PieceType.PAWN -> "Pawn"
     PieceType.KING -> "King"
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun PromotionDialogPreview() {
-    MaterialTheme {
-        PromotionDialog(color = ChessColor.WHITE, onChoose = {}, onDismiss = {})
-    }
 }

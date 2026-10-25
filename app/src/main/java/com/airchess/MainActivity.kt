@@ -12,7 +12,9 @@ import com.airchess.data.StoredPrefs
 import com.airchess.engine.StockfishEngine
 import com.airchess.media.AndroidViewSharing
 import com.airchess.net.KtorOnlineGameClient
-import com.airchess.ui.App
+import com.airchess.ui.AirChessApp
+import com.airchess.ui.rememberAndroidBoardSurface
+import com.airchess.ui.rememberAndroidPlatformServices
 import com.airchess.viewmodel.ChessViewModel
 
 class MainActivity : ComponentActivity() {
@@ -35,7 +37,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         acceptJoinIntent(intent)
         setContent {
-            App(viewModel)
+            AirChessApp(viewModel, rememberAndroidPlatformServices(), rememberAndroidBoardSurface())
         }
     }
 

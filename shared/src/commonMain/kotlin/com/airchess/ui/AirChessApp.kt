@@ -1,23 +1,17 @@
 package com.airchess.ui
 
-import android.os.Build
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,17 +23,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.airchess.ar.ArGate
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import com.airchess.chess.Fen
 import com.airchess.model.GameMode
-import com.airchess.model.HapticKind
 import com.airchess.model.UiEvent
-import com.airchess.media.androidSharing
 import com.airchess.viewmodel.ChessViewModel
 import kotlinx.coroutines.launch
 
@@ -58,45 +50,31 @@ private enum class Screen {
 }
 
 @Composable
-fun AirChessTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
-    val context = LocalContext.current
-    val scheme = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-            if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        dark -> darkColorScheme()
-        else -> lightColorScheme()
-    }
-    MaterialTheme(colorScheme = scheme, content = content)
-}
-
-@Composable
-fun App(viewModel: ChessViewModel) {
-    AirChessTheme {
-        AppContent(viewModel)
+fun AirChessApp(viewModel: ChessViewModel, platform: PlatformServices, boardSurface: BoardSurface) {
+    AirChessTheme(platform) {
+        AppContent(viewModel, platform, boardSurface)
     }
 }
 
 @Composable
-private fun AppContent(viewModel: ChessViewModel) {
-    var cameraStage by rememberSaveable { mutableStateOf(false) }
-    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { viewModel.stopCamera(); cameraStage = false }
+private fun AppContent(viewModel: ChessViewModel, platform: PlatformServices, boardSurface: BoardSurface) {
+    val hudCovered = boardSurface.coversHud()
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { viewModel.stopCamera() }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var sheet by rememberSaveable { mutableStateOf(Sheet.NONE) }
-    var screen by rememberSaveable { mutableStateOf(if (state.onboardingComplete) Screen.HOME else Screen.ONBOARDING) }
+    var sheet by rememberSavedEnum(Sheet.NONE)
+    var screen by rememberSavedEnum(if (state.onboardingComplete) Screen.HOME else Screen.ONBOARDING)
     var confirmResign by rememberSaveable { mutableStateOf(false) }
     var confirmLeave by rememberSaveable { mutableStateOf(false) }
     var confirmDeepLink by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val haptics = LocalHapticFeedback.current
     val hapticsEnabled by rememberUpdatedState(state.settings.hapticsEnabled)
 
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
                 is UiEvent.Haptic -> if (hapticsEnabled) {
-                    haptics.performHapticFeedback(event.kind.feedbackType())
+                    platform.haptic(event.kind)
                 }
                 is UiEvent.Message -> scope.launch {
                     snackbar.currentSnackbarData?.dismiss()
@@ -130,12 +108,11 @@ private fun AppContent(viewModel: ChessViewModel) {
             }
         }
     }
-    LaunchedEffect(state.camera.enabled) {
-        if (!state.camera.enabled) cameraStage = false
-    }
 
-    androidx.activity.compose.BackHandler(cameraStage) { cameraStage = false }
-    androidx.activity.compose.BackHandler(!cameraStage && (screen == Screen.GAME || screen == Screen.LOBBY)) {
+    NavigationBackHandler(
+        state = rememberNavigationEventState(NavigationEventInfo.None),
+        isBackEnabled = !hudCovered && (screen == Screen.GAME || screen == Screen.LOBBY),
+    ) {
         if (state.online?.resultText != null) {
             viewModel.leaveOnlineGame()
             screen = Screen.HOME
@@ -148,15 +125,17 @@ private fun AppContent(viewModel: ChessViewModel) {
     }
 
     if (!state.onboardingComplete) {
-        Onboarding(state.playerName) {
-            viewModel.completeOnboarding(it)
-            screen = Screen.HOME
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            Onboarding(state.playerName) {
+                viewModel.completeOnboarding(it)
+                screen = Screen.HOME
+            }
         }
         return
     }
 
     if (screen == Screen.HOME) {
-        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
             HomeScreen(
                 onOnline = { sheet = Sheet.ONLINE },
                 state = state,
@@ -201,7 +180,6 @@ private fun AppContent(viewModel: ChessViewModel) {
                 onCamera = {
                     if (state.camera.enabled) {
                         viewModel.stopCamera()
-                        cameraStage = false
                     } else {
                         viewModel.startCamera()
                     }
@@ -212,23 +190,9 @@ private fun AppContent(viewModel: ChessViewModel) {
             )
         }
         Box(Modifier.fillMaxSize()) {
-            ArGate(
-                board = state.board,
-                repositionToken = state.repositionToken,
-                onSquareTapped = viewModel::onSquareTapped,
-                onStatusChanged = viewModel::onArStatus,
-                capture = viewModel.androidSharing.capture,
-                prefer3d = state.prefer3d,
-                onPrefer3d = { viewModel.setPrefer3d(true) },
-                modifier = Modifier.fillMaxSize(),
-            )
-            if (cameraStage && state.camera.enabled) {
-                CameraVideoStage(state, viewModel, { cameraStage = false }, { cameraStage = false }, viewModel::stopCamera)
-            } else if (state.camera.enabled) {
-                CameraBoardPreview(state, viewModel, { cameraStage = true }, Modifier.align(Alignment.TopEnd))
-            }
-            if (!cameraStage) { GameOverlay(state = state, actions = actions) }
-            if (!cameraStage && state.settings.showDebug) {
+            boardSurface.Content(state, viewModel, Modifier.fillMaxSize())
+            if (!hudCovered) { GameOverlay(state = state, actions = actions) }
+            if (!hudCovered && state.settings.showDebug) {
                 val fen = remember(state.board.position) { Fen.export(state.board.position) }
                 DebugOverlay(
                     status = state.arStatus,
@@ -256,7 +220,6 @@ private fun AppContent(viewModel: ChessViewModel) {
                 TextButton(onClick = {
                     confirmLeave = false
                     viewModel.leaveOnlineGame()
-                    cameraStage = false
                     screen = Screen.HOME
                 }) { Text("Leave") }
             },
@@ -302,6 +265,7 @@ private fun AppContent(viewModel: ChessViewModel) {
         Sheet.HISTORY -> MoveHistorySheet(state.moveHistory) { sheet = Sheet.NONE }
         Sheet.ONLINE -> PlayOnlineSheet(
             state = state,
+            platform = platform,
             onCreate = viewModel::createOnlineGame,
             onJoin = viewModel::joinOnlineGame,
             onLeave = {
@@ -328,12 +292,3 @@ private fun ResignDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
         dismissButton = { TextButton(onClick = onDismiss) { Text("Keep playing") } },
     )
 }
-
-private fun HapticKind.feedbackType(): HapticFeedbackType =
-    when (this) {
-        HapticKind.SELECT -> HapticFeedbackType.SegmentTick
-        HapticKind.MOVE -> HapticFeedbackType.Confirm
-        HapticKind.CHECK -> HapticFeedbackType.LongPress
-        HapticKind.REJECTED -> HapticFeedbackType.Reject
-        HapticKind.GAME_OVER -> HapticFeedbackType.LongPress
-    }
