@@ -1,0 +1,15 @@
+--- a/src/shm.h
++++ b/src/shm.h
+@@ -36,8 +36,10 @@
+ #include <utility>
+ #include <variant>
+ 
+-#if (defined(__linux__) && !defined(__ANDROID__)) || defined(__APPLE__) || defined(__FreeBSD__) \
+-  || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__DragonFly__)
++// AirChess: SF_NO_UNIX_SHM forces the local-memory fallback (no POSIX shm or unix sockets).
++#if !defined(SF_NO_UNIX_SHM) \
++  && ((defined(__linux__) && !defined(__ANDROID__)) || defined(__APPLE__) || defined(__FreeBSD__) \
++      || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__DragonFly__))
+     #define USE_UNIX_SHM
+     #include "shm_unix.h"
+ #endif
