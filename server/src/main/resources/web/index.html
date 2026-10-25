@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AirChess Web</title>
+<style>
+  :root { --light: #e8d5b0; --dark: #8b5a3c; --bg: #1b2a3a; --fg: #f2e6ce; --accent: #d9a441; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--fg);
+         display: flex; flex-direction: column; align-items: center; padding: 16px; gap: 12px; }
+  h1 { margin: 0; font-size: 22px; }
+  .panel { background: #24384d; border-radius: 12px; padding: 12px 16px; width: min(92vw, 520px); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  input, select, button { font: inherit; padding: 6px 10px; border-radius: 8px; border: 1px solid #5b7590; }
+  input, select { background: #13202d; color: var(--fg); }
+  button { background: var(--accent); color: #1b1b1b; border: none; cursor: pointer; font-weight: 600; }
+  button:disabled { opacity: .4; cursor: default; }
+  button.secondary { background: #3b5672; color: var(--fg); }
+  #board { display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
+           width: min(92vw, 520px); aspect-ratio: 1; border: 10px solid #4a2e1f; border-radius: 6px; user-select: none; }
+  .sq { display: flex; align-items: center; justify-content: center; font-size: min(9vw, 52px);
+        line-height: 1; cursor: pointer; position: relative; min-height: 0; overflow: hidden; }
+  .sq.light { background: var(--light); } .sq.dark { background: var(--dark); }
+  .sq.last { box-shadow: inset 0 0 0 100px rgba(217, 164, 65, .45); }
+  .sq.sel { box-shadow: inset 0 0 0 100px rgba(60, 140, 220, .55); }
+  .w { color: #fffaf0; text-shadow: 0 0 2px #000, 0 0 2px #000; } .b { color: #1a1210; }
+  .player { display: flex; justify-content: space-between; align-items: center; width: min(92vw, 520px); }
+  .clock { font-family: ui-monospace, monospace; font-size: 22px; background: #13202d; padding: 4px 10px; border-radius: 8px; }
+  .clock.active { background: var(--accent); color: #1b1b1b; }
+  #code { font-family: ui-monospace, monospace; font-size: 28px; letter-spacing: 6px; }
+  #status { min-height: 1.4em; }
+  #moves { font-family: ui-monospace, monospace; font-size: 13px; opacity: .85; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<h1>AirChess Web</h1>
+
+<div id="lobby" class="panel">
+  <div class="row"><input id="name" placeholder="Your name" maxlength="20"></div>
+  <p class="row">
+    <select id="tc"></select>
+    <select id="color"><option value="RANDOM">Random</option><option value="WHITE">White</option><option value="BLACK">Black</option></select>
+    <button id="create">Create game</button>
+  </p>
+  <div class="row"><input id="joinCode" placeholder="CODE" maxlength="6" style="text-transform:uppercase;width:8em"><button id="join">Join</button></div>
+</div>
+
+<div id="game" class="hidden" style="display:contents">
+  <div class="panel row" id="codePanel">Code: <span id="code"></span><button class="secondary" id="copy">Copy link</button></div>
+  <div class="player"><span id="oppName">Opponent</span><span class="clock" id="oppClock">-</span></div>
+  <div id="board"></div>
+  <div class="player"><span id="myName">You</span><span class="clock" id="myClock">-</span></div>
+  <div class="panel">
+    <div id="status"></div>
+    <p class="row">
+      <button id="resign" class="secondary">Resign</button>
+      <button id="draw" class="secondary">Offer draw</button>
+      <button id="acceptDraw" class="hidden">Accept draw</button>
+      <button id="declineDraw" class="secondary hidden">Decline</button>
+      <button id="rematch" class="hidden">Rematch</button>
+      <button id="leave" class="secondary">Leave</button>
+    </p>
+    <div id="moves"></div>
+  </div>
+</div>
+
+<script>
+const GLYPH = { k: "\u265A", q: "\u265B", r: "\u265C", b: "\u265D", n: "\u265E", p: "\u265F" };
+const PRESETS = [[60, 0], [180, 2], [300, 0], [600, 0], [900, 10]];
+const $ = (id) => document.getElementById(id);
+
+let ws = null, side = null, code = null, token = null, snap = null, receivedAt = 0, selected = null;
+
+PRESETS.forEach(([s, i]) => $("tc").add(new Option(`${s / 60}+${i}`, `${s},${i}`)));
+$("tc").value = "180,2";
+$("name").value = localStorage.getItem("airchess.name") || "";
+$("joinCode").value = new URLSearchParams(location.search).get("code") || "";
+
+function socketUrl() {
+  const scheme = location.protocol === "https:" ? "wss" : "ws";
+  return `${scheme}://${location.host}/ws`;
+}
+
+function connect(firstMessage) {
+  ws = new WebSocket(socketUrl());
+  ws.onopen = () => send(firstMessage);
+  ws.onmessage = (e) => onMessage(JSON.parse(e.data));
+  ws.onclose = () => {
+    if (!code) { return; }
+    $("status").textContent = "Reconnecting...";
+    setTimeout(() => connect({ type: "resume", code, token }), 2000);
+  };
+}
+
+function send(message) { ws && ws.readyState === 1 && ws.send(JSON.stringify(message)); }
+
+function playerName() {
+  const name = $("name").value.trim() || "Web player";
+  localStorage.setItem("airchess.name", name);
+  return name;
+}
+
+$("create").onclick = () => {
+  const [initialSeconds, incrementSeconds] = $("tc").value.split(",").map(Number);
+  connect({ type: "create", name: playerName(), timeControl: { initialSeconds, incrementSeconds }, color: $("color").value });
+};
+$("join").onclick = () => connect({ type: "join", code: $("joinCode").value.trim().toUpperCase(), name: playerName() });
+$("resign").onclick = () => confirm("Resign?") && send({ type: "resign" });
+$("draw").onclick = () => send({ type: "offer_draw" });
+$("acceptDraw").onclick = () => send({ type: "respond_draw", accept: true });
+$("declineDraw").onclick = () => send({ type: "respond_draw", accept: false });
+$("rematch").onclick = () => send(snap.rematchOfferBy && snap.rematchOfferBy !== side
+  ? { type: "respond_rematch", accept: true } : { type: "offer_rematch" });
+$("leave").onclick = () => { send({ type: "leave" }); code = null; ws.close(); location.search = ""; };
+$("copy").onclick = () => navigator.clipboard.writeText(`${location.origin}${location.pathname}?code=${code}`);
+
+function onMessage(msg) {
+  if (msg.type === "error") { $("status").textContent = msg.message; return; }
+  if (msg.type === "joined") { side = msg.side; code = msg.code; token = msg.token; }
+  if (msg.type === "move_rejected") { $("status").textContent = `Move rejected: ${msg.reason}`; }
+  if (msg.snapshot) {
+    snap = msg.snapshot;
+    snap.started = !!(snap.whiteName && snap.blackName);
+    snap.sideToMove = snap.moves.length % 2 === 0 ? "WHITE" : "BLACK";
+    receivedAt = performance.now();
+    selected = null;
+    render();
+  }
+}
+
+/** Replays UCI moves from the start position; the server has already validated them. */
+function boardFromMoves(moves) {
+  const board = {};
+  const back = "rnbqkbnr";
+  for (let f = 0; f < 8; f++) {
+    const file = "abcdefgh"[f];
+    board[file + "1"] = "w" + back[f]; board[file + "2"] = "wp";
+    board[file + "7"] = "bp"; board[file + "8"] = "b" + back[f];
+  }
+  for (const uci of moves) {
+    const from = uci.slice(0, 2), to = uci.slice(2, 4), promo = uci[4];
+    const piece = board[from];
+    if (piece[1] === "k" && Math.abs(from.charCodeAt(0) - to.charCodeAt(0)) === 2) {
+      const rank = from[1], kingside = to[0] === "g";
+      board[(kingside ? "f" : "d") + rank] = board[(kingside ? "h" : "a") + rank];
+      delete board[(kingside ? "h" : "a") + rank];
+    }
+    if (piece[1] === "p" && from[0] !== to[0] && !board[to]) { delete board[to[0] + from[1]]; }
+    delete board[from];
+    board[to] = promo ? piece[0] + promo : piece;
+  }
+  return board;
+}
+
+function render() {
+  $("lobby").classList.add("hidden");
+  $("game").classList.remove("hidden");
+  $("code").textContent = code;
+  $("codePanel").classList.toggle("hidden", snap.started);
+
+  const board = boardFromMoves(snap.moves);
+  const last = snap.moves[snap.moves.length - 1];
+  const files = side === "BLACK" ? "hgfedcba" : "abcdefgh";
+  const ranks = side === "BLACK" ? "12345678" : "87654321";
+  const el = $("board");
+  el.innerHTML = "";
+  for (const r of ranks) {
+    for (const f of files) {
+      const sq = f + r, piece = board[sq];
+      const div = document.createElement("div");
+      div.className = "sq " + (("abcdefgh".indexOf(f) + Number(r)) % 2 === 0 ? "light" : "dark");
+      if (last && (last.slice(0, 2) === sq || last.slice(2, 4) === sq)) { div.classList.add("last"); }
+      if (selected === sq) { div.classList.add("sel"); }
+      if (piece) { div.innerHTML = `<span class="${piece[0]}">${GLYPH[piece[1]]}</span>`; }
+      div.onclick = () => onSquare(sq, board);
+      el.appendChild(div);
+    }
+  }
+
+  const mine = side === "WHITE" ? snap.whiteName : snap.blackName;
+  const theirs = side === "WHITE" ? snap.blackName : snap.whiteName;
+  $("myName").textContent = `${mine} (${side.toLowerCase()})`;
+  $("oppName").textContent = theirs || "Waiting for opponent...";
+
+  const over = !!snap.result;
+  $("resign").disabled = over || !snap.started;
+  $("draw").disabled = over || !snap.started || snap.drawOfferBy === side;
+  const incomingDraw = !over && snap.drawOfferBy && snap.drawOfferBy !== side;
+  $("acceptDraw").classList.toggle("hidden", !incomingDraw);
+  $("declineDraw").classList.toggle("hidden", !incomingDraw);
+  $("rematch").classList.toggle("hidden", !over);
+  $("rematch").disabled = snap.rematchOfferBy === side;
+  $("rematch").textContent = snap.rematchOfferBy && snap.rematchOfferBy !== side ? "Accept rematch" : "Rematch";
+
+  $("status").textContent = statusText();
+  $("moves").textContent = snap.moves.map((m, i) => (i % 2 === 0 ? `${i / 2 + 1}. ` : "") + m).join(" ");
+  tickClocks();
+}
+
+function statusText() {
+  if (!snap.started) { return "Share the code with your opponent."; }
+  if (snap.result) {
+    const r = snap.result;
+    const who = r.winner === null ? "Draw" : r.winner === side ? "You won" : "You lost";
+    return `${who} - ${r.reason.toLowerCase().replace(/_/g, " ")}`;
+  }
+  if (snap.drawOfferBy && snap.drawOfferBy !== side) { return "Opponent offers a draw."; }
+  return snap.sideToMove === side ? "Your move" : "Opponent's move";
+}
+
+function onSquare(sq, board) {
+  if (!snap.started || snap.result || snap.sideToMove !== side) { return; }
+  const piece = board[sq];
+  const own = piece && piece[0] === side[0].toLowerCase();
+  if (own) { selected = sq; render(); return; }
+  if (!selected) { return; }
+
+  let uci = selected + sq;
+  const moving = board[selected];
+  if (moving[1] === "p" && (sq[1] === "8" || sq[1] === "1")) {
+    const choice = (prompt("Promote to (q, r, b, n)", "q") || "q").toLowerCase()[0];
+    uci += "qrbn".includes(choice) ? choice : "q";
+  }
+  send({ type: "move", uci, ply: snap.moves.length });
+  selected = null;
+}
+
+function fmt(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function tickClocks() {
+  if (!snap) { return; }
+  const elapsed = snap.clockRunning && !snap.result ? performance.now() - receivedAt : 0;
+  const white = snap.whiteMillis - (snap.sideToMove === "WHITE" ? elapsed : 0);
+  const black = snap.blackMillis - (snap.sideToMove === "BLACK" ? elapsed : 0);
+  const mine = side === "WHITE" ? white : black, theirs = side === "WHITE" ? black : white;
+  $("myClock").textContent = fmt(mine);
+  $("oppClock").textContent = fmt(theirs);
+  const live = snap.started && !snap.result;
+  $("myClock").classList.toggle("active", live && snap.sideToMove === side);
+  $("oppClock").classList.toggle("active", live && snap.sideToMove !== side);
+}
+setInterval(tickClocks, 200);
+</script>
+</body>
+</html>

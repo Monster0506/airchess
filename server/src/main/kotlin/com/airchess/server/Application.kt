@@ -4,6 +4,7 @@ import com.airchess.protocol.Protocol
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.engine.embeddedServer
+import io.ktor.server.http.content.staticResources
 import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.calllogging.CallLogging
 import io.ktor.server.response.respondText
@@ -43,6 +44,7 @@ internal fun Application.module(newReferee: () -> MoveReferee = { ChessReferee()
 
     routing {
         get("/") { call.respondText("AirChess server OK - rooms: ${registry.size}") }
+        staticResources("/play", "web")
         webSocket(Protocol.WEBSOCKET_PATH) {
             val session = Session(registry, WsConnection(this))
             try {
