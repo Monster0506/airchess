@@ -3,6 +3,7 @@ package com.airchess.ui
 import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.Composable
 import com.airchess.model.HapticKind
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents
 import platform.CoreGraphics.CGRectMake
 import platform.Foundation.NSURL
@@ -13,11 +14,12 @@ import platform.UIKit.UIImpactFeedbackStyle
 import platform.UIKit.UINotificationFeedbackGenerator
 import platform.UIKit.UINotificationFeedbackType
 import platform.UIKit.UIPasteboard
-import platform.UIKit.UISceneActivationState
+import platform.UIKit.UISceneActivationStateForegroundActive
 import platform.UIKit.UISelectionFeedbackGenerator
 import platform.UIKit.UIViewController
 import platform.UIKit.UIWindow
 import platform.UIKit.UIWindowScene
+import platform.UIKit.popoverPresentationController
 
 class IosPlatformServices : PlatformServices {
 
@@ -25,6 +27,7 @@ class IosPlatformServices : PlatformServices {
         UIPasteboard.generalPasteboard.string = text
     }
 
+    @OptIn(ExperimentalForeignApi::class)
     override fun shareText(title: String, text: String) {
         val top = topController() ?: return
         val sheet = UIActivityViewController(activityItems = listOf(text), applicationActivities = null)
@@ -69,7 +72,7 @@ class IosPlatformServices : PlatformServices {
 
     private fun topController(): UIViewController? {
         val scenes = UIApplication.sharedApplication.connectedScenes.filterIsInstance<UIWindowScene>()
-        val scene = scenes.firstOrNull { it.activationState == UISceneActivationState.UISceneActivationStateForegroundActive }
+        val scene = scenes.firstOrNull { it.activationState == UISceneActivationStateForegroundActive }
             ?: scenes.firstOrNull()
         val windows = scene?.windows?.filterIsInstance<UIWindow>().orEmpty()
         var top = (windows.firstOrNull { it.isKeyWindow() } ?: windows.firstOrNull())?.rootViewController
