@@ -17,7 +17,7 @@ import io.github.sceneview.rememberOnGestureListener
 import io.github.sceneview.rememberView
 
 /** Orbit camera start: white's side, 45 degrees above the board, looking at its center. */
-private val HOME_EYE = Position(0f, 0.55f, 0.55f)
+private val HOME_EYE = Position(0f, 0.9f, 0.9f)
 private val HOME_TARGET = Position(0f, 0f, 0f)
 
 /**

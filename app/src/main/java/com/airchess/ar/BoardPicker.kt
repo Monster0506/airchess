@@ -1,47 +1,63 @@
 package com.airchess.ar
 
 import com.airchess.chess.ChessSquare
+import com.airchess.chess.PieceType
 import dev.romainguy.kotlin.math.Float3
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sqrt
 
 /**
  * Maps a board-local ray to a square. Pure math: the caller moves the world ray into board-local
  * space first, so the black perspective (rotated content root) needs no special case here.
  *
- * A ray counts as hitting a piece when it crosses a vertical cylinder around an occupied square
- * center (y in 0..[PIECE_HEIGHT]); otherwise the y = 0 board plane decides. The nearest hit wins,
- * so tapping the visible body of a tall piece selects that piece, not the square behind it.
+ * Each piece is a tapered body of its model's height (wide base, narrow top); otherwise the
+ * y = 0 board plane decides. The nearest hit wins, so tapping the visible body of a tall piece
+ * selects that piece, while a tap just above a short piece's taller neighbour still reaches it.
  */
 object BoardPicker {
-    const val PIECE_HEIGHT = 0.045f
-    const val PIECE_RADIUS_FACTOR = 0.45f
-
+    private const val BASE_RADIUS_FACTOR = 0.3f
+    private const val TOP_TAPER = 0.4f
+    private const val SAMPLES = 24
     private const val EPS = 1e-6f
+
+    /** Model heights in meters, matching the generated GLB assets. */
+    fun height(type: PieceType): Float = when (type) {
+        PieceType.PAWN -> 0.022f
+        PieceType.ROOK -> 0.028f
+        PieceType.KNIGHT -> 0.032f
+        PieceType.BISHOP -> 0.036f
+        PieceType.QUEEN -> 0.042f
+        PieceType.KING -> 0.046f
+    }
 
     fun pick(
         geometry: BoardGeometry,
         origin: Float3,
         direction: Float3,
-        occupied: Collection<ChessSquare>,
+        pieces: Map<ChessSquare, PieceType>,
     ): ChessSquare? {
         var bestSquare: ChessSquare? = null
         var bestT = Float.MAX_VALUE
 
-        if (kotlin.math.abs(direction.y) > EPS) {
+        if (abs(direction.y) > EPS) {
             val t = -origin.y / direction.y
-            if (t >= 0f) {
-                val hit = geometry.localPositionToSquare(origin.x + t * direction.x, origin.z + t * direction.z)
-                if (hit != null) {
-                    bestSquare = hit
-                    bestT = t
-                }
+            val hit = if (t >= 0f) {
+                geometry.localPositionToSquare(origin.x + t * direction.x, origin.z + t * direction.z)
+            } else {
+                null
+            }
+            if (hit != null) {
+                bestSquare = hit
+                bestT = t
             }
         }
 
-        val radius = geometry.squareSize * PIECE_RADIUS_FACTOR
-        occupied.forEach { square ->
+        val baseRadius = geometry.squareSize * BASE_RADIUS_FACTOR
+        pieces.forEach { (square, type) ->
             val center = geometry.squareToLocalPosition(square)
-            val t = cylinderHit(origin, direction, center.x, center.z, radius)
+            val t = bodyHit(origin, direction, center.x, center.z, height(type), baseRadius)
             if (t != null && t < bestT) {
                 bestT = t
                 bestSquare = square
@@ -51,42 +67,58 @@ object BoardPicker {
         return bestSquare
     }
 
-    /** Smallest non-negative ray parameter hitting the finite cylinder, or null. */
-    private fun cylinderHit(origin: Float3, direction: Float3, cx: Float, cz: Float, radius: Float): Float? {
-        var best: Float? = null
+    /** Smallest ray parameter inside the tapered body, found by sampling its bounding cylinder. */
+    private fun bodyHit(
+        origin: Float3,
+        direction: Float3,
+        cx: Float,
+        cz: Float,
+        height: Float,
+        baseRadius: Float,
+    ): Float? {
+        var start = 0f
+        var end = Float.MAX_VALUE
+
+        if (abs(direction.y) > EPS) {
+            val atBase = -origin.y / direction.y
+            val atTop = (height - origin.y) / direction.y
+            start = max(start, min(atBase, atTop))
+            end = min(end, max(atBase, atTop))
+        } else if (origin.y < 0f || origin.y > height) {
+            return null
+        }
 
         val dx = origin.x - cx
         val dz = origin.z - cz
         val a = direction.x * direction.x + direction.z * direction.z
         if (a > EPS) {
             val b = 2f * (dx * direction.x + dz * direction.z)
-            val c = dx * dx + dz * dz - radius * radius
+            val c = dx * dx + dz * dz - baseRadius * baseRadius
             val discriminant = b * b - 4f * a * c
-            if (discriminant >= 0f) {
-                val root = sqrt(discriminant)
-                val near = (-b - root) / (2f * a)
-                val far = (-b + root) / (2f * a)
-                for (t in floatArrayOf(near, far)) {
-                    val y = origin.y + t * direction.y
-                    if (t >= 0f && y >= 0f && y <= PIECE_HEIGHT) {
-                        best = t
-                        break
-                    }
-                }
+            if (discriminant < 0f) {
+                return null
             }
+            val root = sqrt(discriminant)
+            start = max(start, (-b - root) / (2f * a))
+            end = min(end, (-b + root) / (2f * a))
+        } else if (dx * dx + dz * dz > baseRadius * baseRadius) {
+            return null
         }
 
-        if (kotlin.math.abs(direction.y) > EPS) {
-            val t = (PIECE_HEIGHT - origin.y) / direction.y
-            if (t >= 0f) {
-                val hx = origin.x + t * direction.x - cx
-                val hz = origin.z + t * direction.z - cz
-                if (hx * hx + hz * hz <= radius * radius && (best == null || t < best)) {
-                    best = t
-                }
-            }
+        if (start > end || end == Float.MAX_VALUE) {
+            return null
         }
 
-        return best
+        for (i in 0..SAMPLES) {
+            val t = start + (end - start) * i / SAMPLES
+            val y = origin.y + t * direction.y
+            val radius = baseRadius * (1f - TOP_TAPER * y / height)
+            val hx = origin.x + t * direction.x - cx
+            val hz = origin.z + t * direction.z - cz
+            if (hx * hx + hz * hz <= radius * radius) {
+                return t
+            }
+        }
+        return null
     }
 }

@@ -9,6 +9,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import com.airchess.chess.ChessColor
 import com.airchess.chess.ChessSquare
+import com.airchess.chess.PieceType
 import com.airchess.model.BoardViewState
 import com.google.android.filament.MaterialInstance
 import com.google.android.filament.View
@@ -37,7 +38,7 @@ private const val BLACK_PERSPECTIVE_YAW = 180f
  */
 class BoardRef(val geometry: BoardGeometry = BoardGeometry()) {
     internal var root: NodeImpl? = null
-    internal var occupied: List<ChessSquare> = emptyList()
+    internal var pieces: Map<ChessSquare, PieceType> = emptyMap()
 
     /** Square under screen point ([xPx], [yPx]) of [view], or null. */
     fun pick(view: View, xPx: Float, yPx: Float): ChessSquare? {
@@ -49,7 +50,7 @@ class BoardRef(val geometry: BoardGeometry = BoardGeometry()) {
             geometry,
             worldToLocalPosition(ray.origin, toLocal),
             worldToLocalDirection(ray.direction, toLocal),
-            occupied,
+            pieces,
         )
     }
 }
@@ -65,8 +66,8 @@ fun SceneScope.BoardContent(
     ref: BoardRef,
     materials: BoardMaterials = rememberBoardMaterials(materialLoader),
 ) {
-    val occupied = remember(board.position) { board.position.pieces().map { it.first } }
-    SideEffect { ref.occupied = occupied }
+    val pieces = remember(board.position) { board.position.pieces().associate { (square, piece) -> square to piece.type } }
+    SideEffect { ref.pieces = pieces }
     DisposableEffect(ref) { onDispose { ref.root = null } }
 
     Node(
@@ -86,8 +87,9 @@ private fun SceneScope.BoardBase(geometry: BoardGeometry, materials: BoardMateri
         value = modelLoader.loadBoardModel()
     }
 
-    DisposableEffect(state) {
-        onDispose { (state as? AssetState.Ready)?.let { modelLoader.destroyModel(it.value.asset) } }
+    val loaded = state
+    DisposableEffect(loaded) {
+        onDispose { (loaded as? AssetState.Ready)?.let { modelLoader.destroyModel(it.value.asset) } }
     }
 
     when (val current = state) {
