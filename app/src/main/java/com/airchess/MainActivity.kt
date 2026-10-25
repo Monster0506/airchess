@@ -27,13 +27,23 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
+        acceptJoinIntent(intent)
         setContent {
             App(viewModel)
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        acceptJoinIntent(intent)
+    }
+
+    private fun acceptJoinIntent(intent: android.content.Intent?) {
+        val code = com.airchess.ui.parseJoinCode(intent?.dataString) ?: return
+        viewModel.handleDeepLink(code)
     }
 }

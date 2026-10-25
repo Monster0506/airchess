@@ -1,4 +1,6 @@
 package com.airchess.ui
+import android.content.ClipData
+import android.content.ClipboardManager
 
 import android.content.Context
 import android.content.Intent
@@ -76,7 +78,7 @@ fun PlayOnlineSheet(
             when {
                 online == null -> LobbyForm(state, onCreate, onJoin)
                 online.code == null -> ConnectingPanel(onCancel = onLeave)
-                else -> GamePanel(code = online.code, waiting = online.waitingForOpponent, onLeave = onLeave)
+                else -> GamePanel(code = online.code, waiting = online.waitingForOpponent, serverUrl = state.serverUrl, onLeave = onLeave)
             }
         }
     }
@@ -92,10 +94,11 @@ private fun ConnectingPanel(onCancel: () -> Unit) {
 }
 
 @Composable
-private fun GamePanel(code: String, waiting: Boolean, onLeave: () -> Unit) {
+private fun GamePanel(code: String, waiting: Boolean, serverUrl: String, onLeave: () -> Unit) {
     val context = LocalContext.current
+    val link = webInviteLink(serverUrl, code)
     Text(
-        text = if (waiting) "Waiting for your opponent. Share this code:" else "Game code",
+        text = if (waiting) "Waiting for your opponent. Share this game:" else "Game code",
         style = MaterialTheme.typography.bodyLarge,
     )
     Text(
@@ -109,9 +112,18 @@ private fun GamePanel(code: String, waiting: Boolean, onLeave: () -> Unit) {
         ),
         textAlign = TextAlign.Center,
     )
-    Button(onClick = { shareCode(context, code) }, modifier = Modifier.fillMaxWidth()) {
-        Icon(Icons.Filled.Share, contentDescription = null)
-        Text("Share code", modifier = Modifier.padding(start = 8.dp))
+    link?.let { webLink ->
+        Button(onClick = { shareCode(context, code, webLink) }, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Filled.Share, contentDescription = null)
+            Text("Share invite", modifier = Modifier.padding(start = 8.dp))
+        }
+        OutlinedButton(
+            onClick = {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("AirChess invite", webLink))
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Copy invite link") }
     }
     OutlinedButton(onClick = onLeave, modifier = Modifier.fillMaxWidth()) {
         Text(if (waiting) "Cancel game" else "Leave game")
@@ -211,10 +223,10 @@ private const val MAX_NAME_LENGTH = 20
 internal fun sanitizeCode(raw: String): String =
     raw.uppercase().filter { it in Protocol.CODE_ALPHABET }.take(Protocol.CODE_LENGTH)
 
-private fun shareCode(context: Context, code: String) {
+private fun shareCode(context: Context, code: String, webLink: String) {
     val send = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, "Join my AirChess game! Code: $code")
+        putExtra(Intent.EXTRA_TEXT, "Join my AirChess game: $webLink (code $code)")
     }
-    context.startActivity(Intent.createChooser(send, "Share game code").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    context.startActivity(Intent.createChooser(send, "Share game").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }

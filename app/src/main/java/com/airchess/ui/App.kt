@@ -70,8 +70,9 @@ fun App(viewModel: ChessViewModel) {
 private fun AppContent(viewModel: ChessViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var sheet by rememberSaveable { mutableStateOf(Sheet.NONE) }
+    var screen by rememberSaveable { mutableStateOf(if (state.onboardingComplete) "home" else "onboarding") }
     var confirmResign by rememberSaveable { mutableStateOf(false) }
-
+    var confirmLeave by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
@@ -91,73 +92,123 @@ private fun AppContent(viewModel: ChessViewModel) {
         }
     }
 
-    val gameStarted = state.online?.let { it.code != null && !it.waitingForOpponent } == true
-    LaunchedEffect(gameStarted) {
-        if (gameStarted && sheet == Sheet.ONLINE) {
+    LaunchedEffect(state.online?.code, state.online?.waitingForOpponent) {
+        val online = state.online
+        if (online?.code != null && !online.waitingForOpponent) {
+            screen = "game"
             sheet = Sheet.NONE
         }
     }
-
-    val actions = remember(viewModel) {
-        GameActions(
-            onUndo = viewModel::undo,
-            onReset = viewModel::reset,
-            onReposition = viewModel::reposition,
-            onHint = viewModel::requestHint,
-            onHistory = { sheet = Sheet.HISTORY },
-            onSettings = { sheet = Sheet.SETTINGS },
-            onOnline = { sheet = Sheet.ONLINE },
-            onResign = { confirmResign = true },
-            onOfferDraw = viewModel::offerDraw,
-            onRespondDraw = viewModel::respondDraw,
-            onOfferRematch = viewModel::offerRematch,
-            onRespondRematch = viewModel::respondRematch,
-            onLeave = viewModel::leaveOnlineGame,
-        )
+    LaunchedEffect(state.online) {
+        val online = state.online
+        if (online != null) {
+            screen = if (online.code != null && !online.waitingForOpponent) "game" else "lobby"
+            sheet = if (online.code == null || online.waitingForOpponent) Sheet.ONLINE else Sheet.NONE
+        }
     }
 
-    Box(Modifier.fillMaxSize()) {
-        ArGate(
-            board = state.board,
-            repositionToken = state.repositionToken,
-            onSquareTapped = viewModel::onSquareTapped,
-            onStatusChanged = viewModel::onArStatus,
-            modifier = Modifier.fillMaxSize(),
-        )
+    androidx.activity.compose.BackHandler(screen == "game" || screen == "lobby") {
+        if (state.online?.resultText != null) {
+            viewModel.leaveOnlineGame()
+            screen = "home"
+        } else if (state.online != null) {
+            confirmLeave = true
+        } else {
+            screen = "home"
+        }
+    }
 
-        GameOverlay(state = state, actions = actions)
+    if (!state.onboardingComplete) {
+        Onboarding(state.playerName) {
+            viewModel.completeOnboarding(it)
+            screen = "home"
+        }
+        return
+    }
 
-        if (state.settings.showDebug) {
-            val fen = remember(state.board.position) { Fen.export(state.board.position) }
-            DebugOverlay(
-                status = state.arStatus,
-                selected = state.board.selectedSquare,
-                fen = fen,
-                modifier = Modifier.align(Alignment.CenterStart).safeDrawingPadding().padding(8.dp),
+    if (screen == "home") {
+        Box(Modifier.fillMaxSize()) {
+            HomeScreen(
+                onOnline = { sheet = Sheet.ONLINE },
+                state = state,
+                onLocal = { viewModel.openGame("local"); screen = "game" },
+                onComputer = { viewModel.openGame("computer"); screen = "game" },
+                onResume = {
+                    val online = state.online
+                    if (online != null) {
+                        screen = if (online.waitingForOpponent) "lobby" else "game"
+                    } else {
+                        viewModel.resumeLocal()
+                        screen = "game"
+                    }
+                },
+                onSettings = { sheet = Sheet.SETTINGS },
+            )
+            SnackbarHost(snackbar, Modifier.align(Alignment.TopCenter).safeDrawingPadding())
+        }
+    } else {
+        val actions = remember(viewModel) {
+            GameActions(
+                onUndo = viewModel::undo,
+                onReset = viewModel::reset,
+                onReposition = viewModel::reposition,
+                onHint = viewModel::requestHint,
+                onHistory = { sheet = Sheet.HISTORY },
+                onSettings = { sheet = Sheet.SETTINGS },
+                onOnline = { sheet = Sheet.ONLINE },
+                onResign = { confirmResign = true },
+                onOfferDraw = viewModel::offerDraw,
+                onRespondDraw = viewModel::respondDraw,
+                onOfferRematch = viewModel::offerRematch,
+                onRespondRematch = viewModel::respondRematch,
+                onLeave = { confirmLeave = true },
             )
         }
-
-        SnackbarHost(
-            hostState = snackbar,
-            modifier = Modifier.align(Alignment.TopCenter).safeDrawingPadding().padding(top = 96.dp),
-        )
+        Box(Modifier.fillMaxSize()) {
+            ArGate(
+                board = state.board,
+                repositionToken = state.repositionToken,
+                onSquareTapped = viewModel::onSquareTapped,
+                onStatusChanged = viewModel::onArStatus,
+                prefer3d = state.prefer3d,
+                onPrefer3d = { viewModel.setPrefer3d(true) },
+                modifier = Modifier.fillMaxSize(),
+            )
+            GameOverlay(state = state, actions = actions)
+            if (state.settings.showDebug) {
+                val fen = remember(state.board.position) { Fen.export(state.board.position) }
+                DebugOverlay(
+                    status = state.arStatus,
+                    selected = state.board.selectedSquare,
+                    fen = fen,
+                    modifier = Modifier.align(Alignment.CenterStart).safeDrawingPadding().padding(8.dp),
+                )
+            }
+            SnackbarHost(snackbar, Modifier.align(Alignment.TopCenter).safeDrawingPadding().padding(top = 96.dp))
+        }
     }
 
     state.pendingPromotion?.let {
-        PromotionDialog(
-            color = it.color,
-            onChoose = viewModel::onPromotionChosen,
-            onDismiss = viewModel::onPromotionDismissed,
-        )
+        PromotionDialog(it.color, viewModel::onPromotionChosen, viewModel::onPromotionDismissed)
     }
-
     if (confirmResign) {
-        ResignDialog(
-            onConfirm = {
-                confirmResign = false
-                viewModel.resign()
+        ResignDialog({ confirmResign = false; viewModel.resign() }, { confirmResign = false })
+    }
+    if (confirmLeave) {
+        AlertDialog(
+            onDismissRequest = { confirmLeave = false },
+            title = { Text("Leave this game?") },
+            text = { Text("Leaving an online game forfeits after 60 seconds. You can resign now instead.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmLeave = false
+                    viewModel.leaveOnlineGame()
+                    screen = "home"
+                }) { Text("Leave") }
             },
-            onDismiss = { confirmResign = false },
+            dismissButton = {
+                TextButton(onClick = { confirmLeave = false; if (state.online != null) viewModel.resign() }) { Text("Resign") }
+            },
         )
     }
 
@@ -167,15 +218,32 @@ private fun AppContent(viewModel: ChessViewModel) {
             settings = state.settings,
             onChange = viewModel::updateSettings,
             onDismiss = { sheet = Sheet.NONE },
+            name = state.playerName,
+            serverUrl = state.serverUrl,
+            prefer3d = state.prefer3d,
+            onNameChange = viewModel::setName,
+            onServerChange = viewModel::setServerUrl,
+            onPrefer3dChange = viewModel::setPrefer3d,
         )
-        Sheet.HISTORY -> MoveHistorySheet(records = state.moveHistory, onDismiss = { sheet = Sheet.NONE })
+        Sheet.HISTORY -> MoveHistorySheet(state.moveHistory) { sheet = Sheet.NONE }
         Sheet.ONLINE -> PlayOnlineSheet(
             state = state,
-            onCreate = viewModel::createOnlineGame,
-            onJoin = viewModel::joinOnlineGame,
+            onCreate = { name, url, control, color ->
+                viewModel.createOnlineGame(name, url, control, color)
+                screen = "lobby"
+            },
+            onJoin = { code, name, url ->
+                viewModel.joinOnlineGame(code, name, url)
+                screen = "lobby"
+            },
             onLeave = {
-                viewModel.leaveOnlineGame()
-                sheet = Sheet.NONE
+                if (state.online?.code != null) {
+                    confirmLeave = true
+                } else {
+                    viewModel.leaveOnlineGame()
+                    screen = "home"
+                    sheet = Sheet.NONE
+                }
             },
             onDismiss = { sheet = Sheet.NONE },
         )

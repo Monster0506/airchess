@@ -69,8 +69,12 @@ data class GameUiState(
     val online: OnlineUiState? = null,
     val playerName: String = "",
     val serverUrl: String = "",
-    /** Why the last create/join attempt failed; cleared on the next attempt. */
     val lobbyError: String? = null,
+    val onboardingComplete: Boolean = false,
+    val prefer3d: Boolean = false,
+    val gameMode: String = "local",
+    val engineThinking: Boolean = false,
+    val deepLinkCode: String? = null,
 ) {
     val isOnlineGame: Boolean
         get() = online?.code != null
@@ -78,9 +82,11 @@ data class GameUiState(
     val isMyTurn: Boolean
         get() = online?.myColor?.let { it == currentTurn } ?: true
 
-    /** Engine help is fair game offline and in post-game review, never during a live online game. */
     val hintsAllowed: Boolean
         get() = online?.code == null || online.resultText != null
+
+    val hasResumeGame: Boolean
+        get() = online?.code != null || moveHistory.isNotEmpty()
 }
 
 enum class HapticKind {

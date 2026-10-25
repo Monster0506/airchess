@@ -62,15 +62,15 @@ fun ArGate(
     onSquareTapped: (ChessSquare) -> Unit,
     onStatusChanged: (ArStatus) -> Unit,
     modifier: Modifier = Modifier,
+    prefer3d: Boolean = false,
+    onPrefer3d: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
-
     var support by remember { mutableStateOf(ArSupport.CHECKING) }
     var recheck by remember { mutableIntStateOf(0) }
     var cameraAsked by rememberSaveable { mutableStateOf(false) }
     var camera by remember { mutableStateOf(readCameraAccess(context, activity, cameraAsked)) }
-    var prefer3d by rememberSaveable { mutableStateOf(false) }
     var sessionError by remember { mutableStateOf<String?>(null) }
     var installError by remember { mutableStateOf(false) }
 
@@ -106,7 +106,7 @@ fun ArGate(
                 title = stringResource(R.string.ar_unsupported_title),
                 body = sessionError?.let { stringResource(R.string.ar_session_failed_body, it) }
                     ?: stringResource(R.string.ar_unsupported_body),
-                secondary = stringResource(R.string.ar_play_in_3d) to { prefer3d = true },
+                secondary = stringResource(R.string.ar_play_in_3d) to onPrefer3d,
             )
             ArGateScreen.INSTALL_ARCORE -> GateCard(
                 title = stringResource(R.string.ar_install_title),
@@ -115,25 +115,25 @@ fun ArGate(
                     installError = !requestInstall(activity)
                     recheck++
                 },
-                secondary = stringResource(R.string.ar_play_in_3d) to { prefer3d = true },
+                secondary = stringResource(R.string.ar_play_in_3d) to onPrefer3d,
             )
             ArGateScreen.CAMERA_RATIONALE -> GateCard(
                 title = stringResource(R.string.ar_camera_title),
                 body = stringResource(R.string.ar_camera_rationale),
                 primary = stringResource(R.string.ar_camera_grant) to { cameraLauncher.launch(Manifest.permission.CAMERA) },
-                secondary = stringResource(R.string.ar_play_in_3d) to { prefer3d = true },
+                secondary = stringResource(R.string.ar_play_in_3d) to onPrefer3d,
             )
             ArGateScreen.CAMERA_DENIED -> GateCard(
                 title = stringResource(R.string.ar_camera_title),
                 body = stringResource(R.string.ar_camera_denied_body),
                 primary = stringResource(R.string.ar_camera_grant) to { cameraLauncher.launch(Manifest.permission.CAMERA) },
-                secondary = stringResource(R.string.ar_play_in_3d) to { prefer3d = true },
+                secondary = stringResource(R.string.ar_play_in_3d) to onPrefer3d,
             )
             ArGateScreen.CAMERA_BLOCKED -> GateCard(
                 title = stringResource(R.string.ar_camera_title),
                 body = stringResource(R.string.ar_camera_blocked_body),
                 primary = stringResource(R.string.ar_camera_open_settings) to { openAppSettings(context) },
-                secondary = stringResource(R.string.ar_play_in_3d) to { prefer3d = true },
+                secondary = stringResource(R.string.ar_play_in_3d) to onPrefer3d,
             )
         }
     }

@@ -89,8 +89,11 @@ class ChessViewModel(
     private val mutableState = MutableStateFlow(
         GameUiState(
             settings = prefs?.settings ?: GameSettings(),
-            playerName = prefs?.playerName.orEmpty(),
+            playerName = prefs?.playerName ?: "Player",
             serverUrl = prefs?.serverUrl ?: defaultServerUrl,
+            onboardingComplete = prefs?.onboardingComplete == true,
+            prefer3d = prefs?.prefer3d == true,
+            gameMode = prefs?.savedMode?.ifEmpty { "local" } ?: "local",
         ),
     )
     private val mutableEvents = MutableSharedFlow<UiEvent>(extraBufferCapacity = EVENT_BUFFER)
@@ -111,7 +114,106 @@ class ChessViewModel(
     private var clockAnchor: ClockAnchor? = null
 
     init {
+        restoreLocalGame()
         mutate { it }
+        val code = prefs?.savedOnlineCode.orEmpty()
+        val key = prefs?.savedOnlineToken.orEmpty()
+        if (code.isNotEmpty() && key.isNotEmpty()) {
+            resumeOnline(code, key)
+        }
+    }
+
+
+    fun setName(name: String) {
+        val clean = name.trim().take(20).ifEmpty { "Player" }
+        prefs?.playerName = clean
+        mutate { it.copy(playerName = clean) }
+    }
+
+    fun setServerUrl(url: String) {
+        val clean = url.trim()
+        prefs?.serverUrl = clean
+        mutate { it.copy(serverUrl = clean) }
+    }
+
+    fun setPrefer3d(value: Boolean) {
+        prefs?.prefer3d = value
+        mutate { it.copy(prefer3d = value) }
+    }
+
+    fun handleDeepLink(code: String) {
+        if (!mutableState.value.onboardingComplete) {
+            mutate { it.copy(deepLinkCode = code) }
+            return
+        }
+        joinOnlineGame(code, mutableState.value.playerName, mutableState.value.serverUrl)
+    }
+
+    fun completeOnboarding(name: String) {
+        val clean = name.trim().ifEmpty { "Player" }
+        prefs?.playerName = clean
+        prefs?.onboardingComplete = true
+        val code = mutableState.value.deepLinkCode
+        mutate { it.copy(playerName = clean, onboardingComplete = true, deepLinkCode = null) }
+        if (code != null) {
+            joinOnlineGame(code, clean, mutableState.value.serverUrl)
+        }
+    }
+    fun startLocal(mode: String = "local") {
+        closeSession()
+        game.reset()
+        prefs?.savedMode = mode
+        prefs?.savedMoves = ""
+        mutate { it.copy(online = null, gameMode = mode, engine = EngineUiState(), engineThinking = false) }
+    }
+
+    fun resumeLocal() {
+        restoreLocalGame()
+        mutate { it.copy(online = null) }
+    }
+
+    private fun restoreLocalGame() {
+        game.reset()
+        val moves = prefs?.savedMoves.orEmpty().split(',').filter(String::isNotBlank)
+        for (uci in moves) {
+            val move = game.findMoveByUci(uci) ?: return
+            if (!game.makeMove(move)) {
+                return
+            }
+        }
+    }
+
+    fun resumeOnline(code: String, key: String) {
+        val url = mutableState.value.serverUrl
+        closeSession()
+        val session = clientFactory()
+        client = session
+        sessionCode = code
+        token = key
+        mutate { it.copy(online = OnlineUiState(code = code, myName = it.playerName), gameMode = "online") }
+        sessionJob = viewModelScope.launch {
+            if (!tryConnect(session, url)) {
+                mutate { it.copy(online = it.online?.copy(lastError = "Could not connect to the server")) }
+                return@launch
+            }
+            session.send(ClientMessage.Resume(code, key))
+            holdReconnect(session, url)
+        }
+    }
+
+    private suspend fun holdReconnect(session: OnlineGameClient, url: String) {
+        while (true) {
+            session.state.first { it == ConnectionState.DISCONNECTED }
+            reconnect(session, url)
+        }
+    }
+
+    fun openGame(mode: String) {
+        closeSession()
+        game.reset()
+        prefs?.savedMode = mode
+        prefs?.savedMoves = ""
+        mutate { it.copy(online = null, gameMode = mode, engineThinking = false, engine = EngineUiState()) }
     }
 
     fun onSquareTapped(square: ChessSquare) {
@@ -158,7 +260,13 @@ class ChessViewModel(
     }
 
     fun undo() {
-        if (mutableState.value.online != null || !game.undoMove()) {
+        if (mutableState.value.online != null) {
+            return
+        }
+        if (mutableState.value.gameMode == "computer" && game.moveHistory.size >= 2) {
+            game.undoMove()
+            game.undoMove()
+        } else if (!game.undoMove()) {
             return
         }
         positionChanged()
@@ -219,6 +327,8 @@ class ChessViewModel(
         if (mutableState.value.online == null) {
             return
         }
+        prefs?.savedOnlineCode = ""
+        prefs?.savedOnlineToken = ""
         client?.send(ClientMessage.Leave)
         closeSession()
         game.reset()
@@ -312,11 +422,23 @@ class ChessViewModel(
         }
         positionChanged()
         moveHaptic()
-
         if (mutableState.value.online != null && !sendOnline(ClientMessage.MakeMove(move.uci, ply))) {
             game.undoMove()
             positionChanged()
+            return
         }
+        persistLocalGame()
+        if (mutableState.value.gameMode == "computer" && !game.gameStatus.isGameOver) {
+            playComputerMove()
+        }
+    }
+
+    private fun persistLocalGame() {
+        if (mutableState.value.online != null) {
+            return
+        }
+        prefs?.savedMode = mutableState.value.gameMode
+        prefs?.savedMoves = game.moveHistory.joinToString(",") { it.move.uci }
     }
 
     private fun positionChanged() {
@@ -327,7 +449,37 @@ class ChessViewModel(
                 board = it.board.copy(hint = null),
                 engine = EngineUiState(),
                 pendingPromotion = null,
+                engineThinking = false,
             )
+        }
+    }
+
+    private fun playComputerMove() {
+        val fen = game.exportFen()
+        mutate { it.copy(engineThinking = true, engine = EngineUiState(isAnalyzing = true)) }
+        analysisJob?.cancel()
+        analysisJob = viewModelScope.launch {
+            try {
+                val answer = withContext(engineDispatcher) {
+                    obtainEngine().analyze(fen, mutableState.value.settings.engineDepth)
+                }
+                if (game.exportFen() != fen) {
+                    return@launch
+                }
+                val move = answer.bestMove?.let { game.findMoveByUci(it) }
+                if (move == null || !game.makeMove(move)) {
+                    mutate { it.copy(engineThinking = false, engine = EngineUiState(engineError = "Stockfish found no usable move")) }
+                    return@launch
+                }
+                positionChanged()
+                persistLocalGame()
+                moveHaptic()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val reason = e.message ?: "Stockfish is unavailable"
+                mutate { it.copy(engineThinking = false, engine = EngineUiState(engineError = "Computer unavailable: $reason")) }
+            }
         }
     }
 
@@ -493,6 +645,9 @@ class ChessViewModel(
     private fun onJoined(joined: ServerMessage.Joined) {
         token = joined.token
         sessionCode = joined.code
+        prefs?.savedOnlineCode = joined.code
+        prefs?.savedOnlineToken = joined.token
+        prefs?.savedMode = "online"
         mutate {
             it.copy(
                 board = it.board.copy(perspective = joined.side.toColor()),
@@ -571,6 +726,8 @@ class ChessViewModel(
             moveHaptic()
         } else if (previousResult == null && snapshot.result != null) {
             haptic(HapticKind.GAME_OVER)
+            prefs?.savedOnlineCode = ""
+            prefs?.savedOnlineToken = ""
         }
     }
 

@@ -75,7 +75,7 @@ fun GameOverlay(state: GameUiState, actions: GameActions, modifier: Modifier = M
                 OnlineTopBar(online = online, opponentToMove = online.myColor != state.currentTurn)
             }
             StatusPill(state)
-            EngineHintCard(state.engine)
+            EngineHintCard(state.engine, state.engineThinking)
         }
 
         Column(
@@ -123,8 +123,9 @@ private fun StatusPill(state: GameUiState) {
 }
 
 @Composable
-private fun EngineHintCard(engine: EngineUiState) {
+private fun EngineHintCard(engine: EngineUiState, computerThinking: Boolean) {
     val text = when {
+        computerThinking -> "Computer is thinking"
         engine.isAnalyzing -> "Analyzing..."
         engine.engineError != null -> engine.engineError
         engine.hintText != null -> engine.hintText + (engine.evalText?.let { "  Eval: $it" } ?: "")
