@@ -18,6 +18,13 @@ application {
     mainClass.set("com.airchess.server.ApplicationKt")
 }
 
+tasks.processResources {
+    from(rootProject.file("app/src/main/assets/models")) {
+        include("*.glb")
+        into("web/models")
+    }
+}
+
 dependencies {
     implementation(project(":protocol"))
     implementation(project(":chess"))
