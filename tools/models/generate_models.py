@@ -346,25 +346,92 @@ def king():
     return np.concatenate([lathe(prof), cross])
 
 
-KNIGHT_OUTLINE = [
-    (-9.0, 3.0), (8.0, 3.0), (9.5, 8.0), (6.0, 13.5), (5.5, 16.5),
-    (9.5, 16.0), (12.5, 17.5), (12.5, 19.5), (10.0, 22.5), (8.0, 27.0),
-    (7.5, 30.0), (6.5, 32.0), (5.0, 29.2), (3.0, 32.0), (1.5, 28.5),
-    (-2.0, 26.0), (-5.0, 21.0), (-8.0, 14.0), (-10.0, 9.0),
+# Spine of the horse head in the Y-Z plane, neck bottom to muzzle (mm). Each
+# station is (z, y, half depth in the plane, half width along X); sections are
+# ellipses perpendicular to the spine, so the head is solid from every side.
+KNIGHT_SPINE = [
+    (0.0, 3.5, 8.0, 5.6),
+    (-0.5, 9.0, 7.0, 5.2),
+    (-0.5, 15.0, 5.8, 4.8),
+    (0.0, 19.5, 5.0, 4.5),
+    (1.5, 23.0, 4.4, 4.5),
+    (4.2, 24.5, 4.2, 4.5),
+    (7.6, 22.8, 3.8, 4.0),
+    (9.6, 19.8, 3.2, 3.4),
+    (10.6, 16.8, 2.4, 2.8),
+    (11.0, 14.8, 1.2, 1.6),
 ]
+KNIGHT_RING = 14
+KNIGHT_EAR_Y = 32.0
+KNIGHT_EARS = [(3.0, 2.4), (3.0, -2.4)]  # (z, x) of the ear bases
+KNIGHT_MANE_SPAN = range(1, 6)
+KNIGHT_MANE_OUT = 1.8
+KNIGHT_MANE_IN = 1.5
+KNIGHT_MANE_HALF = 0.8
+
+
+def spine_frames(spine):
+    """Unit normals (pointing forward at the base) along the spine."""
+    frames = []
+    for i, (z, y, _, _) in enumerate(spine):
+        z0, y0 = spine[max(i - 1, 0)][:2]
+        z1, y1 = spine[min(i + 1, len(spine) - 1)][:2]
+        tz, ty = z1 - z0, y1 - y0
+        norm = math.hypot(tz, ty)
+        frames.append((ty / norm, -tz / norm))
+    return frames
+
+
+def loft(spine, ring=KNIGHT_RING):
+    rings = []
+    for (z, y, a, w), (nz, ny) in zip(spine, spine_frames(spine)):
+        rings.append([
+            (w * math.sin(t), y + a * math.cos(t) * ny, z + a * math.cos(t) * nz)
+            for t in (2 * math.pi * j / ring for j in range(ring))
+        ])
+
+    def center(r):
+        return tuple(sum(p[i] for p in r) / len(r) for i in range(3))
+
+    tris = []
+    for lo, hi in zip(rings, rings[1:]):
+        for j in range(ring):
+            k = (j + 1) % ring
+            tris.append((lo[j], lo[k], hi[k]))
+            tris.append((lo[j], hi[k], hi[j]))
+    for r, flip in ((rings[0], True), (rings[-1], False)):
+        c = center(r)
+        for j in range(ring):
+            a, b = r[j], r[(j + 1) % ring]
+            tris.append((c, b, a) if flip else (c, a, b))
+    return solid(tris)
+
+
+def mane(spine):
+    """Thin fin along the back of the neck, rooted inside the body."""
+    frames = spine_frames(spine)
+    out, inn = [], []
+    for i in KNIGHT_MANE_SPAN:
+        z, y, a, _ = spine[i]
+        nz, ny = frames[i]
+        out.append((z - (a + KNIGHT_MANE_OUT) * nz, y - (a + KNIGHT_MANE_OUT) * ny))
+        inn.append((z - (a - KNIGHT_MANE_IN) * nz, y - (a - KNIGHT_MANE_IN) * ny))
+    poly = out + inn[::-1]
+    area = sum(p[0] * q[1] - q[0] * p[1] for p, q in zip(poly, poly[1:] + poly[:1]))
+    if area < 0:
+        poly.reverse()
+    h = KNIGHT_MANE_HALF
+    loops = [(-h, 0.7), (-h + 0.4, 1.0), (h - 0.4, 1.0), (h, 0.7)]
+    return extrude(poly, lambda u, v, w: (w, v, u), loops)
 
 
 def knight(white):
     pedestal = lathe([
         (0.0, 0.0), (13.0, 0.0), (13.0, 2.0), (12.0, 3.5), (10.5, 4.5), (0.0, 4.5),
     ])
-    half, bevel = 5.5, 1.6
-    head = extrude(
-        KNIGHT_OUTLINE,
-        lambda u, v, w: (w, v, u),
-        [(-half, 0.8), (-half + bevel, 1.0), (half - bevel, 1.0), (half, 0.8)],
-    )
-    tris = np.concatenate([pedestal, head])
+    ear = lathe([(0.0, 0.0), (1.6, 0.0), (1.1, 2.4), (0.0, 5.5)], 8)
+    ears = [ear + np.array([x, KNIGHT_EAR_Y - 5.5, z]) for z, x in KNIGHT_EARS]
+    tris = np.concatenate([pedestal, loft(KNIGHT_SPINE), mane(KNIGHT_SPINE), *ears])
     return rot_y_180(tris) if white else tris
 
 
