@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/ios-core
+      - feat/ios-engine
       - feat/ios
   workflow_dispatch:
 
@@ -18,6 +19,8 @@ jobs:
   shared:
     runs-on: macos-15
     timeout-minutes: 60
+    env:
+      AIRCHESS_SF_CACHE: ${{ github.workspace }}/.cache/stockfish
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -31,6 +34,24 @@ jobs:
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
           xcrun --sdk iphonesimulator --show-sdk-version
+
+      - name: Cache Stockfish source and net
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.AIRCHESS_SF_CACHE }}
+          key: stockfish-inputs-${{ hashFiles('ios/stockfish/pins.env') }}
+
+      # Same key as ios-stockfish.yml, so a cache hit skips the C++ build.
+      - name: Cache Stockfish xcframework
+        id: xcframework
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ios/stockfish/build/Stockfish.xcframework
+          key: stockfish-xcframework-${{ hashFiles('ios/stockfish/build.sh', 'ios/stockfish/pins.env', 'ios/stockfish/lib.mk', 'ios/stockfish/patches/**', 'ios/stockfish/src/**', 'ios/stockfish/include/**') }}
+
+      - name: Build Stockfish xcframework
+        if: steps.xcframework.outputs.cache-hit != 'true'
+        run: ios/stockfish/build.sh ios
 
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
@@ -61,5 +82,19 @@ jobs:
             :shared:iosSimulatorArm64Test \
             :shared:linkDebugFrameworkIosSimulatorArm64
 
+      - name: Show engine test results
+        if: always()
+        run: |
+          for f in shared/build/test-results/iosSimulatorArm64Test/*Stockfish*.xml; do
+            grep -E '<testsuite |<testcase |<failure' "$f"
+          done
+
       - name: Link the release framework for devices
         run: ./gradlew --console=plain :shared:linkReleaseFrameworkIosArm64
+
+      - name: Check the engine is linked into the frameworks
+        run: |
+          for f in shared/build/bin/iosSimulatorArm64/debugFramework/Shared.framework/Shared \
+                   shared/build/bin/iosArm64/releaseFramework/Shared.framework/Shared; do
+            xcrun nm -g "$f" | grep -E ' T _sf_(start|send|read_line|stop)$'
+          done
