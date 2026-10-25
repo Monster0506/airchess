@@ -1,15 +1,18 @@
-"""Procedurally generates the AirChess chess set as binary glTF (GLB) files.
+"""Procedurally generates the AirChess chess set as binary glTF (GLB) and USDZ files.
 
-Output (relative to the repo root): app/src/main/assets/models/
-  {white,black}_{pawn,rook,knight,bishop,queen,king}.glb and board.glb
+Output (relative to the repo root):
+  app/src/main/assets/models/  GLB for Android
+  iosApp/Models/               USDZ for iOS (RealityKit)
+  {white,black}_{pawn,rook,knight,bishop,queen,king} and board, in each format
 
-Coordinate spec (meters, +Y up, glTF right-handed):
+Coordinate spec (meters, +Y up, right-handed, same in both formats):
   * Piece origin is the center of its base, the base sits on y = 0.
   * White knights face -Z, black knights face +Z (baked in).
   * Board: top face at y = 0, a1 at x = -0.175, z = +0.175; files grow +X,
     ranks grow -Z.
 
-The output is deterministic: no randomness, no timestamps.
+Both formats are written from the same in-memory vertex/index arrays. The
+output is deterministic: no randomness, no timestamps.
 """
 
 import argparse
@@ -17,6 +20,9 @@ import json
 import math
 import struct
 import sys
+import tempfile
+import warnings
+import zipfile
 from collections import Counter
 from pathlib import Path
 
@@ -36,7 +42,18 @@ BOARD_SIZE = 8 * SQUARE
 FRAME_WIDTH = 0.02
 FRAME_DEPTH = 0.012
 
-OUT_DIR = Path(__file__).resolve().parents[2] / "app" / "src" / "main" / "assets" / "models"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+OUT_DIR = REPO_ROOT / "app" / "src" / "main" / "assets" / "models"
+USDZ_DIR = REPO_ROOT / "iosApp" / "Models"
+FORMATS = ("glb", "usdz")
+
+# Zip header layout used to pin entry timestamps (1980-01-01 00:00).
+DOS_DATE = (0 << 9) | (1 << 5) | 1
+DOS_TIME = 0
+ZIP_LOCAL_TIME = 10
+ZIP_CENTRAL_TIME = 12
+ZIP_CENTRAL_LENGTHS = 28
+ZIP_CENTRAL_FIXED = 46
 
 PIECE_NAMES = ("pawn", "rook", "knight", "bishop", "queen", "king")
 PIECE_HEIGHTS = {
@@ -502,8 +519,13 @@ def mesh_arrays(tris):
     return uniq[:, :3].copy(), uniq[:, 3:].copy(), inverse.reshape(-1).astype(np.uint32)
 
 
-def write_glb(path, name, prims, styles):
-    """prims: [(material name, triangles)]; writes one mesh with one primitive each."""
+def build_meshes(prims):
+    """prims: [(material name, triangles)] -> [(material name, positions, normals, indices)]."""
+    return [(mat, *mesh_arrays(tris)) for mat, tris in prims]
+
+
+def write_glb(path, name, meshes, styles):
+    """Writes one glTF mesh with one primitive per entry of `meshes`."""
     blob = bytearray()
     views, accessors, primitives, materials = [], [], [], []
 
@@ -514,8 +536,7 @@ def write_glb(path, name, prims, styles):
         blob.extend(data)
         return len(views) - 1
 
-    for mat_index, (mat, tris) in enumerate(prims):
-        pos, nrm, idx = mesh_arrays(tris)
+    for mat_index, (mat, pos, nrm, idx) in enumerate(meshes):
         color, rough = styles[mat]
         materials.append({
             "name": mat,
@@ -565,6 +586,104 @@ def write_glb(path, name, prims, styles):
         f.write(struct.pack("<II", len(blob), 0x004E4942) + bytes(blob))
 
 
+# ------------------------------------------------------------------- usdz
+
+def pin_zip_time(path):
+    """Overwrites the DOS mtime of every entry so repackaging yields identical bytes."""
+    data = bytearray(Path(path).read_bytes())
+    with zipfile.ZipFile(path) as zf:
+        offsets = [info.header_offset for info in zf.infolist()]
+        entry = zf.start_dir
+    for off in offsets:
+        struct.pack_into("<HH", data, off + ZIP_LOCAL_TIME, DOS_TIME, DOS_DATE)
+    for _ in offsets:
+        struct.pack_into("<HH", data, entry + ZIP_CENTRAL_TIME, DOS_TIME, DOS_DATE)
+        name_len, extra_len, comment_len = struct.unpack_from("<HHH", data, entry + ZIP_CENTRAL_LENGTHS)
+        entry += ZIP_CENTRAL_FIXED + name_len + extra_len + comment_len
+    Path(path).write_bytes(data)
+
+
+def write_usdz(path, name, meshes, styles):
+    """Writes a Y-up, meters ARKit USDZ with one UsdPreviewSurface material per mesh."""
+    from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade, UsdUtils, Vt
+
+    with tempfile.TemporaryDirectory() as tmp:
+        layer = Path(tmp) / f"{name}.usdc"
+        stage = Usd.Stage.CreateNew(str(layer))
+        UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)
+        UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+
+        root = UsdGeom.Xform.Define(stage, f"/{name}")
+        stage.SetDefaultPrim(root.GetPrim())
+        Usd.ModelAPI(root).SetKind("component")
+        UsdGeom.Scope.Define(stage, f"/{name}/Materials")
+
+        for mat, pos, nrm, idx in meshes:
+            color, rough = styles[mat]
+            mat_path = f"/{name}/Materials/{mat}"
+            material = UsdShade.Material.Define(stage, mat_path)
+            shader = UsdShade.Shader.Define(stage, f"{mat_path}/Surface")
+            shader.CreateIdAttr("UsdPreviewSurface")
+            shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(*linear(color)[:3]))
+            shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(0.0)
+            shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(float(rough))
+            material.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
+
+            mesh = UsdGeom.Mesh.Define(stage, f"/{name}/{mat}")
+            mesh.CreateSubdivisionSchemeAttr(UsdGeom.Tokens.none)
+            mesh.CreateOrientationAttr(UsdGeom.Tokens.rightHanded)
+            mesh.CreateDoubleSidedAttr(False)
+            mesh.CreatePointsAttr(Vt.Vec3fArray.FromNumpy(pos))
+            mesh.CreateFaceVertexCountsAttr(Vt.IntArray(len(idx) // 3, [3] * (len(idx) // 3)))
+            mesh.CreateFaceVertexIndicesAttr(Vt.IntArray.FromNumpy(idx.astype(np.int32)))
+            mesh.CreateExtentAttr(Vt.Vec3fArray([Gf.Vec3f(*map(float, pos.min(axis=0))),
+                                                 Gf.Vec3f(*map(float, pos.max(axis=0)))]))
+            normals = UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
+                "normals", Sdf.ValueTypeNames.Normal3fArray, UsdGeom.Tokens.vertex)
+            normals.Set(Vt.Vec3fArray.FromNumpy(nrm))
+            UsdShade.MaterialBindingAPI.Apply(mesh.GetPrim()).Bind(material)
+
+        stage.GetRootLayer().Save()
+        if not UsdUtils.CreateNewARKitUsdzPackage(Sdf.AssetPath(str(layer)), str(path)):
+            raise RuntimeError(f"{name}: USDZ packaging failed")
+    pin_zip_time(path)
+
+
+def read_usdz(path):
+    """Returns (positions, indices, normals) over all meshes, like read_glb."""
+    from pxr import Usd, UsdGeom
+
+    stage = Usd.Stage.Open(str(path))
+    pos, nrm, tris = [], [], []
+    base = 0
+    for prim in stage.Traverse():
+        if not prim.IsA(UsdGeom.Mesh):
+            continue
+        mesh = UsdGeom.Mesh(prim)
+        counts = np.asarray(mesh.GetFaceVertexCountsAttr().Get())
+        assert (counts == 3).all(), f"{path.name}: non-triangle face"
+        p = np.asarray(mesh.GetPointsAttr().Get(), dtype=np.float32)
+        n = np.asarray(UsdGeom.PrimvarsAPI(mesh).GetPrimvar("normals").Get(), dtype=np.float32)
+        ix = np.asarray(mesh.GetFaceVertexIndicesAttr().Get(), dtype=np.int64)
+        pos.append(p)
+        nrm.append(n)
+        tris.append(ix.reshape(-1, 3) + base)
+        base += len(p)
+    return np.concatenate(pos), np.concatenate(tris), np.concatenate(nrm)
+
+
+def check_usdz(path):
+    from pxr.UsdUtils.complianceChecker import ComplianceChecker
+
+    with warnings.catch_warnings():
+        # Removed upstream in usd-core 26.8; requirements.txt pins the last release that has it.
+        warnings.simplefilter("ignore", DeprecationWarning)
+        checker = ComplianceChecker(arkit=True)
+        checker.CheckCompliance(str(path))
+    errors = checker.GetErrors() + checker.GetFailedChecks()
+    assert not errors, f"{path.name}: USDZ compliance errors: {errors}"
+
+
 def read_glb(path):
     """Minimal GLB reader: returns (positions, indices, normals) over all primitives."""
     data = Path(path).read_bytes()
@@ -593,6 +712,25 @@ def read_glb(path):
     return np.concatenate(pos), np.concatenate(tris), np.concatenate(nrm)
 
 
+def merged(meshes):
+    """Concatenates meshes into (positions, triangle indices, normals) like the readers."""
+    pos, nrm, tris = [], [], []
+    base = 0
+    for _, p, n, idx in meshes:
+        pos.append(p)
+        nrm.append(n)
+        tris.append(idx.astype(np.int64).reshape(-1, 3) + base)
+        base += len(p)
+    return np.concatenate(pos), np.concatenate(tris), np.concatenate(nrm)
+
+
+def assert_same(label, expected, actual):
+    """Vertex/triangle counts must match the in-memory mesh; data must round-trip exactly."""
+    for what, a, b in zip(("vertices", "triangles", "normals"), expected, actual):
+        assert a.shape == b.shape, f"{label}: {what} {a.shape} != {b.shape}"
+        assert np.array_equal(a, b), f"{label}: {what} differ"
+
+
 # ------------------------------------------------------------------- main
 
 def check_piece(name, pos, tris, nrm):
@@ -606,22 +744,37 @@ def check_piece(name, pos, tris, nrm):
     assert (np.einsum("ij,ij->i", face, nrm[tris[:, 0]]) >= -1e-12).all(), f"{name}: flipped faces"
 
 
-def generate(out_dir):
-    out_dir.mkdir(parents=True, exist_ok=True)
-    rows = []
-    for color in PIECE_STYLES:
-        for name in PIECE_NAMES:
-            label = f"{color}_{name}"
-            path = out_dir / f"{label}.glb"
-            write_glb(path, label, [(color, build_piece(name, color == "white"))], PIECE_STYLES)
-            pos, tris, nrm = read_glb(path)
-            check_piece(name, pos, tris, nrm)
-            rows.append((path.name, pos, tris, path.stat().st_size))
+def generate(formats, glb_dir, usdz_dir):
+    assets = [
+        (f"{color}_{name}", [(color, build_piece(name, color == "white"))], PIECE_STYLES, name)
+        for color in PIECE_STYLES
+        for name in PIECE_NAMES
+    ]
+    assets.append(("board", board_prims(), BOARD_STYLES, None))
 
-    path = out_dir / "board.glb"
-    write_glb(path, "board", board_prims(), BOARD_STYLES)
-    pos, tris, _ = read_glb(path)
-    rows.append((path.name, pos, tris, path.stat().st_size))
+    for out_dir, fmt in ((glb_dir, "glb"), (usdz_dir, "usdz")):
+        if fmt in formats:
+            out_dir.mkdir(parents=True, exist_ok=True)
+
+    rows = []
+    for label, prims, styles, piece in assets:
+        meshes = build_meshes(prims)
+        expected = merged(meshes)
+        if piece:
+            check_piece(piece, expected[0], expected[1], expected[2])
+
+        if "glb" in formats:
+            path = glb_dir / f"{label}.glb"
+            write_glb(path, label, meshes, styles)
+            assert_same(path.name, expected, read_glb(path))
+            rows.append((path.name, expected[0], expected[1], path.stat().st_size))
+
+        if "usdz" in formats:
+            path = usdz_dir / f"{label}.usdz"
+            write_usdz(path, label, meshes, styles)
+            check_usdz(path)
+            assert_same(path.name, expected, read_usdz(path))
+            rows.append((path.name, expected[0], expected[1], path.stat().st_size))
     return rows
 
 
@@ -666,11 +819,18 @@ def preview(out_dir, png):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--out", type=Path, default=OUT_DIR, help="output directory")
-    parser.add_argument("--preview", type=Path, help="also write a matplotlib preview PNG")
+    parser.add_argument("--formats", choices=("glb", "usdz", "both"), default="both",
+                        help="which formats to write (default: both)")
+    parser.add_argument("--out", type=Path, default=OUT_DIR, help="GLB output directory")
+    parser.add_argument("--usdz-out", type=Path, default=USDZ_DIR, help="USDZ output directory")
+    parser.add_argument("--preview", type=Path, help="also write a matplotlib preview PNG (needs glb)")
     args = parser.parse_args()
 
-    rows = generate(args.out)
+    formats = FORMATS if args.formats == "both" else (args.formats,)
+    if args.preview and "glb" not in formats:
+        parser.error("--preview reads the GLB output; use --formats glb or both")
+
+    rows = generate(formats, args.out, args.usdz_out)
     report(rows)
     if args.preview:
         preview(args.out, args.preview)
