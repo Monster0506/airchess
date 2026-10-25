@@ -13,3 +13,7 @@ captures/
 .tj-worktrees/
 airchess-server.tgz
 .cache/
+
+# Recorded and downloaded video media
+marketing/video/assets/
+marketing/video/puppet/node_modules/

@@ -1,0 +1,15 @@
+[
+  {"id": "01", "start": 6, "slot": 6, "text": "Your table is the board."},
+  {"id": "02", "start": 12, "slot": 10, "text": "AirChess puts a full-size chess set on any table, desk, or floor. Walk around it. Lean in. It stays right where you put it."},
+  {"id": "03", "start": 22, "slot": 13, "text": "Tap a piece and its moves light up. Tap a square and it glides there. Every rule is handled for you, so all you think about is the game."},
+  {"id": "04", "start": 35, "slot": 15, "text": "Stuck? Tap Hint. Stockfish, one of the strongest chess engines ever built, draws its best move right across your board, and shows you what's under attack."},
+  {"id": "05", "start": 50, "slot": 15, "text": "Want a challenge? Pick a side, pick a level, and take on the computer. Made a mistake? Undo it and try again."},
+  {"id": "06", "start": 65, "slot": 15, "text": "Chess is better with a friend. Create a game, share the code, and they're in, from anywhere."},
+  {"id": "07", "start": 80, "slot": 10, "text": "You each play on your own table, from your own side of the board, live, with real clocks."},
+  {"id": "08", "start": 90, "slot": 20, "text": "And with Share view, you see their board exactly as they do. Their room. Their table. Their move."},
+  {"id": "09", "start": 110, "slot": 8, "text": "Sharing is off until you turn it on, nothing is recorded, and there's no microphone."},
+  {"id": "10", "start": 118, "slot": 12, "text": "Offer a draw. Demand a rematch. Close the app mid-game, and your game is waiting when you come back."},
+  {"id": "11", "start": 130, "slot": 12, "text": "No phone handy? Play right in your browser, in 2D or 3D, against a friend or the computer."},
+  {"id": "12", "start": 142, "slot": 10, "text": "Any table. Any friend. Any time."},
+  {"id": "13", "start": 152, "slot": 8, "text": "AirChess. Chess, wherever you are."}
+]

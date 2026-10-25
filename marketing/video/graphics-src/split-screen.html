@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AirChess split-screen frame</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  svg { position: absolute; left: 0; top: 0; }
+  .tag {
+    position: absolute;
+    box-sizing: border-box;
+    height: 48px;
+    padding: 6px 28px;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--bg);
+    font-family: var(--font-semi);
+    font-weight: 600;
+    font-size: 34px;
+    line-height: 36px;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<svg id="art" xmlns="http://www.w3.org/2000/svg"></svg>
+<script>
+  // Phone window aspect: 1080 x 2424 (same as the share-view overlay).
+  const PHONE = 1080 / 2424;
+  const BEZEL = 12, R_OUT = 56, R_IN = 44;
+
+  function rr(x, y, w, h, r) {
+    return `M${x + r} ${y}H${x + w - r}A${r} ${r} 0 0 1 ${x + w} ${y + r}V${y + h - r}A${r} ${r} 0 0 1 ${x + w - r} ${y + h}H${x + r}A${r} ${r} 0 0 1 ${x} ${y + h - r}V${y + r}A${r} ${r} 0 0 1 ${x + r} ${y}Z`;
+  }
+
+  const landscape = matchMedia('(orientation: landscape)').matches;
+  const W = innerWidth, H = innerHeight;
+  const layout = landscape
+    ? { h: 920, windows: [{ cx: 480, top: 80, name: 'Alex' }, { cx: 1440, top: 80, name: 'Sam' }], divider: 'M960 80V1000' }
+    : { h: 820, windows: [{ cx: 540, top: 80, name: 'Alex' }, { cx: 540, top: 1020, name: 'Sam' }], divider: 'M140 960H940' };
+
+  const ww = layout.h * PHONE;
+  const svg = document.getElementById('art');
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  let bezel = '', rim = '', tags = '';
+  for (const w of layout.windows) {
+    const x = w.cx - ww / 2, y = w.top;
+    const outer = rr(x - BEZEL, y - BEZEL, ww + 2 * BEZEL, layout.h + 2 * BEZEL, R_OUT);
+    const inner = rr(x, y, ww, layout.h, R_IN);
+    bezel += outer + inner;
+    rim += `<path d="${outer}" fill="none" stroke="rgba(242,240,232,.14)" stroke-width="2"/>`;
+    rim += `<path d="${inner}" fill="none" stroke="rgba(242,240,232,.45)" stroke-width="2"/>`;
+    tags += `<div class="tag" style="left:${w.cx}px;top:${y + layout.h - 24}px">${w.name}</div>`;
+  }
+  // Bezel fill with the screen windows cut out (evenodd), so the video shows through.
+  svg.innerHTML =
+    `<path d="${bezel}" fill="#0c110f" fill-rule="evenodd"/>` + rim +
+    `<path d="${layout.divider}" fill="none" stroke="rgba(242,240,232,.35)" stroke-width="2"/>`;
+  document.body.insertAdjacentHTML('beforeend', tags);
+</script>
+</body>
+</html>

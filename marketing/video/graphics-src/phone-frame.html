@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AirChess phone frame</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+  html, body { margin: 0; width: 1152px; height: 2496px; overflow: hidden; background: transparent; }
+  svg { position: absolute; left: 0; top: 0; }
+</style>
+</head>
+<body>
+<svg id="art" xmlns="http://www.w3.org/2000/svg" width="1152" height="2496" viewBox="0 0 1152 2496"></svg>
+<script>
+  // Bezel 36 px around a 1080 x 2424 screen hole at (36, 36). Hole is transparent.
+  function rr(x, y, w, h, r) {
+    return `M${x + r} ${y}H${x + w - r}A${r} ${r} 0 0 1 ${x + w} ${y + r}V${y + h - r}A${r} ${r} 0 0 1 ${x + w - r} ${y + h}H${x + r}A${r} ${r} 0 0 1 ${x} ${y + h - r}V${y + r}A${r} ${r} 0 0 1 ${x + r} ${y}Z`;
+  }
+  const outer = rr(0, 0, 1152, 2496, 150);
+  const hole = rr(36, 36, 1080, 2424, 118);
+  document.getElementById('art').innerHTML =
+    `<path d="${outer}${hole}" fill="#0c110f" fill-rule="evenodd"/>` +
+    `<path d="${rr(2, 2, 1148, 2492, 148)}" fill="none" stroke="#2b3731" stroke-width="4"/>` +
+    `<path d="${hole}" fill="none" stroke="#33423b" stroke-width="3"/>`;
+</script>
+</body>
+</html>

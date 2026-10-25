@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AirChess title card</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  .panel {
+    position: absolute;
+    box-sizing: border-box;
+    padding: 26px 44px 28px 40px;
+    background: rgba(16, 23, 19, 0.82);
+    border-left: 8px solid var(--accent);
+    border-radius: 8px;
+  }
+  .panel p {
+    margin: 0;
+    font-family: var(--font-semi);
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1.22;
+    text-wrap: balance;
+  }
+  @media (orientation: landscape) {
+    .panel { left: 120px; bottom: 230px; max-width: 1300px; }
+    .panel p { font-size: 64px; }
+  }
+  @media (orientation: portrait) {
+    .panel { left: 80px; right: 80px; bottom: 420px; }
+    .panel p { font-size: 72px; }
+  }
+</style>
+</head>
+<body>
+<div class="panel"><p id="text"></p></div>
+<script>
+  // Text comes from the ?text= query parameter, set by render.py.
+  document.getElementById('text').textContent = new URLSearchParams(location.search).get('text') || '';
+</script>
+</body>
+</html>

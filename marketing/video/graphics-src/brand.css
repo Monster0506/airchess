@@ -1,0 +1,19 @@
+:root {
+  --bg: #16231e;
+  --deep: #101713;
+  --panel: #202f28;
+  --panel2: #293a32;
+  --ink: #f2f0e8;
+  --muted: #a6b0a7;
+  --accent: #d9bd78;
+  --line: #43564a;
+  --red: #d7685a;
+  --font: "Segoe UI", system-ui, sans-serif;
+  --font-semi: "Segoe UI Semibold", "Segoe UI", system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--font);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}

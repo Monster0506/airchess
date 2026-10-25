@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="108" height="108" viewBox="0 0 108 108">
+  <!-- Background: adaptive-icon background colour #1B2A3A, rounded square for the end card -->
+  <rect x="0" y="0" width="108" height="108" rx="24" ry="24" fill="#1B2A3A"/>
+  <!-- Foreground: pawn from app/src/main/res/drawable/ic_launcher_foreground.xml -->
+  <path fill="#F2E6CE" d="M54,30a8,8 0,1 1,0 16a8,8 0,1 1,0 -16zM47,48h14l-2,4h-10zM48,53h12l3,17h-18zM40,72h28v6h-28z"/>
+</svg>

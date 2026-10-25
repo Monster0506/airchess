@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AirChess share-view overlay</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+  /* Canvas = 1080 x 2424 px (1344 x 2992 reference scaled to 1080 wide: dp scale 2.625 px/dp). */
+  html, body { margin: 0; width: 1080px; height: 2424px; overflow: hidden; background: transparent; font-family: Roboto, system-ui, sans-serif; }
+
+  /* Corner preview: 112 x 154 dp, top 42 dp, end 14 dp (LiveCameraSession.kt). */
+  .preview {
+    position: absolute;
+    left: 749.25px;
+    top: 110.25px;
+    width: 294px;
+    height: 404.25px;
+    box-sizing: border-box;
+    border: 2px solid var(--ink);
+    border-radius: 26px;
+  }
+
+  /* Bottom buttons: M3 filled, 40 dp high, 24 dp horizontal padding, 12 dp gap, 20 dp from bottom. */
+  .buttons {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 52.5px;
+    display: flex;
+    justify-content: center;
+    gap: 31.5px;
+  }
+  .btn {
+    height: 105px;
+    box-sizing: border-box;
+    padding: 0 63px;
+    border-radius: 52.5px;
+    background: #495d92;
+    color: #ffffff;
+    font-size: 36.75px;
+    font-weight: 500;
+    line-height: 105px;
+    letter-spacing: 0.26px;
+    white-space: nowrap;
+  }
+
+  /* ?mask=1 renders only the preview position as a white shape for masking. */
+  body.mask .buttons { display: none; }
+  body.mask .preview { border: 0; background: #ffffff; }
+</style>
+</head>
+<body>
+<div class="preview"></div>
+<div class="buttons">
+  <span class="btn">Your board</span>
+  <span class="btn">Stop sharing</span>
+</div>
+<script>
+  if (new URLSearchParams(location.search).has('mask')) document.body.classList.add('mask');
+</script>
+</body>
+</html>
