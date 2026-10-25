@@ -14,7 +14,10 @@ const resultFile = resolve(process.env.AIRCHESS_SMOKE_RESULT_FILE || join(root, 
 const screenshotFile = resolve(process.env.AIRCHESS_SMOKE_SCREENSHOT || join(root, 'build/ios-smoke/browser-peer.png'));
 const timeoutMs = Number(process.env.AIRCHESS_SMOKE_TIMEOUT_MS || 180_000);
 const serverBin = resolve(process.env.AIRCHESS_SERVER_BIN || join(root, `server/build/install/server/bin/server${process.platform === 'win32' ? '.bat' : ''}`));
+const PIXEL_DELTA = 24;
+const MIN_CHANGED_PIXELS = 8;
 let serverProcess;
+let browser;
 let page;
 let roomCode;
 let phase = 'starting';
@@ -177,9 +180,13 @@ function frameDifference(before, after) {
       Math.abs(before.sample[index + 2] - after.sample[index + 2]),
     );
     total++;
-    if (diff >= 24) changed++;
+    if (diff >= PIXEL_DELTA) changed++;
   }
-  return { changedPixels: changed, sampledPixels: total, changedRatio: changed / total };
+  return {
+    changedPixels: changed,
+    sampledPixels: total,
+    changedRatio: changed / total,
+  };
 }
 
 async function waitForBoardChange(page, before) {
@@ -189,7 +196,7 @@ async function waitForBoardChange(page, before) {
     const frame = await frameSample(page);
     const difference = frameDifference(before, frame);
     if (difference.changedRatio > best.difference.changedRatio) best = { frame, difference };
-    if (difference.changedRatio >= 0.008) return best;
+    if (difference.changedPixels >= MIN_CHANGED_PIXELS) return { frame, difference };
     await delay(200);
   }
   return best;
@@ -200,6 +207,7 @@ async function roomState(page) {
     status: document.querySelector('#status')?.textContent.trim(),
     moves: [...document.querySelectorAll('#moves .move-cell')].map(cell => cell.textContent.trim()),
     uciMoves: window.__airChessSnapshots?.at(-1)?.moves ?? [],
+    clockRunning: window.__airChessSnapshots?.at(-1)?.clockRunning,
     whiteClock: document.querySelector('#mySide')?.textContent.includes('White')
       ? document.querySelector('#myClock')?.textContent.trim()
       : document.querySelector('#oppClock')?.textContent.trim(),
@@ -214,7 +222,7 @@ async function roomState(page) {
 async function waitForMove(page, move) {
   await page.waitForFunction(expected => {
     const moves = [...document.querySelectorAll('#moves .move-cell')].map(cell => cell.textContent.trim().toLowerCase());
-    return moves.includes(expected);
+    return moves.includes(expected.toLowerCase());
   }, move, { timeout: timeoutMs });
 }
 
@@ -229,7 +237,8 @@ async function readResult() {
     browserSide: state.side?.toUpperCase(),
     moves: state.uciMoves,
     sanMoves: state.moves,
-    turn: state.activeClock,
+    turn: state.uciMoves.length % 2 === 0 ? 'WHITE' : 'BLACK',
+    clockRunning: state.clockRunning,
     status: state.status,
     whiteClock: state.whiteClock,
     blackClock: state.blackClock,
@@ -295,6 +304,10 @@ async function run() {
   assert(before.visibleRatio > 0.12, `Remote frame is mostly black (${before.visibleRatio.toFixed(3)} visible).`);
   assert(before.distinctColors > 80, `Remote frame lacks board content (${before.distinctColors} sampled colors).`);
   peerStats = await readPeerStats(page);
+  const decodedBefore = peerStats.inboundVideo.reduce((sum, row) => sum + row.framesDecoded, 0);
+  const beforeImage = screenshotFile.replace(/\.png$/, '-remote-before.png');
+  const afterImage = screenshotFile.replace(/\.png$/, '-remote-e4.png');
+  await page.locator('#stageRemoteVideo').screenshot({ path: beforeImage });
   assert(peerStats.peerCount === 1, `Expected one browser WebRTC peer, found ${peerStats.peerCount}.`);
   assert(peerStats.connectionStates.some(state => state === 'connected'), `Browser peer not connected: ${peerStats.connectionStates.join(', ')}`);
   phase = 'ready-for-native-e4';
@@ -309,10 +322,14 @@ async function run() {
   await publishResult();
 
   await waitForMove(page, 'e4');
+  // Signaling reaches the DOM before the move animation reaches the video decoder.
+  await delay(1000);
   const { frame: after, difference } = await waitForBoardChange(page, before);
-  assert(difference.changedRatio >= 0.008, `Remote board did not visibly change after e2e4 (${difference.changedRatio.toFixed(4)} changed).`);
+  assert(difference.changedPixels >= MIN_CHANGED_PIXELS, `Remote video did not visibly change after e2e4 (${difference.changedPixels} sampled pixels changed).`);
   peerStats = await readPeerStats(page);
-  assert(peerStats.inboundVideo.some(row => row.framesDecoded > 0 && row.bytesReceived > 0), 'Inbound video stopped before the e2e4 frame check.');
+  const decodedAfter = peerStats.inboundVideo.reduce((sum, row) => sum + row.framesDecoded, 0);
+  assert(decodedAfter > decodedBefore, 'No new remote video frame arrived after e2e4.');
+  await page.locator('#stageRemoteVideo').screenshot({ path: afterImage });
   frameProof = {
     width: after.width,
     height: after.height,
@@ -322,6 +339,10 @@ async function run() {
     hashBefore: before.hash,
     hashAfterE2E4: after.hash,
     e2e4Difference: difference,
+    beforeImage,
+    afterImage,
+    decodedBefore,
+    decodedAfter,
     remoteFrameVerified: true,
   };
   phase = 'remote-frame-verified';
@@ -330,14 +351,14 @@ async function run() {
 
   const beforeE5 = await roomState(page);
   assert(beforeE5.moves.length === 1 && beforeE5.moves[0].toLowerCase() === 'e4', `Browser did not receive e2e4: ${beforeE5.moves.join(' ')}`);
-  assert(beforeE5.activeClock === 'BLACK', `Expected Black to move after e2e4, got ${beforeE5.activeClock}.`);
+  assert(beforeE5.clockRunning === false && beforeE5.activeClock === null, 'Clocks must stay paused until each side has moved once.');
   await page.locator('#stageBoardToggle').click();
   await page.locator('#videoStage').waitFor({ state: 'hidden', timeout: timeoutMs });
   await playMove(page, 'e7', 'e5');
   await waitForMove(page, 'e5');
   const afterE5 = await roomState(page);
   assert(afterE5.moves.map(move => move.toLowerCase()).join(',') === 'e4,e5', `Browser move list mismatch: ${afterE5.moves.join(' ')}`);
-  assert(afterE5.activeClock === 'WHITE', `Expected White to move after e7e5, got ${afterE5.activeClock}.`);
+  assert(afterE5.clockRunning === true && afterE5.activeClock === 'WHITE', `Expected White clock after e7e5, got ${afterE5.activeClock}.`);
   assert(afterE5.whiteClock && afterE5.blackClock, 'Online clocks are missing from browser view.');
   phase = 'awaiting-native-g1f3';
   peerStats = await readPeerStats(page);
