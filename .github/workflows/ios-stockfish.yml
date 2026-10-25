@@ -1,0 +1,85 @@
+name: iOS Stockfish
+
+on:
+  push:
+    branches:
+      - feat/ios-stockfish
+      - feat/ios
+    paths:
+      - ios/stockfish/**
+      - .github/workflows/ios-stockfish.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stockfish:
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      AIRCHESS_SF_CACHE: ${{ github.workspace }}/.cache/stockfish
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26.2
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app
+
+      - name: Toolchain versions
+        run: |
+          xcodebuild -version
+          xcrun clang++ --version
+          xcrun --sdk iphoneos --show-sdk-version
+          xcrun --sdk iphonesimulator --show-sdk-version
+
+      - name: Cache Stockfish source and net
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.AIRCHESS_SF_CACHE }}
+          key: stockfish-inputs-${{ hashFiles('ios/stockfish/pins.env') }}
+
+      - name: Cache xcframework
+        id: xcframework
+        uses: actions/cache@v4
+        with:
+          path: ios/stockfish/build/Stockfish.xcframework
+          key: stockfish-xcframework-${{ hashFiles('ios/stockfish/build.sh', 'ios/stockfish/pins.env', 'ios/stockfish/lib.mk', 'ios/stockfish/patches/**', 'ios/stockfish/src/**', 'ios/stockfish/include/**') }}
+
+      - name: Build xcframework
+        if: steps.xcframework.outputs.cache-hit != 'true'
+        run: ios/stockfish/build.sh ios
+
+      - name: Smoke test (host build of the same sources)
+        run: ios/stockfish/build.sh test
+
+      - name: Show xcframework slices
+        run: |
+          ls -l ios/stockfish/build/Stockfish.xcframework
+          plutil -p ios/stockfish/build/Stockfish.xcframework/Info.plist
+          ls -lh ios/stockfish/build/Stockfish.xcframework/*/libstockfish.a
+          for slice in ios-arm64 ios-arm64-simulator; do
+            lib=ios/stockfish/build/Stockfish.xcframework/$slice/libstockfish.a
+            echo "--- $slice"
+            xcrun lipo -info "$lib"
+            xcrun nm -g "$lib" | grep -E ' T _sf_(start|send|read_line|stop)$'
+            work=$(mktemp -d)
+            (cd "$work" && xcrun ar -x "$GITHUB_WORKSPACE/$lib" stockfish_bridge.o)
+            xcrun vtool -show-build "$work/stockfish_bridge.o"
+          done
+
+      - name: Zip xcframework
+        run: |
+          cd ios/stockfish/build
+          ditto -c -k --sequesterRsrc --keepParent Stockfish.xcframework Stockfish.xcframework.zip
+          ls -lh Stockfish.xcframework.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Stockfish.xcframework
+          path: ios/stockfish/build/Stockfish.xcframework.zip
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stockfish-smoke-test-log
+          path: ios/stockfish/build/smoke_test.log

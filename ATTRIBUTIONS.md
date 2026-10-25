@@ -24,20 +24,25 @@ The chess pieces and board in `app/src/main/assets/models/` (GLB, Android) and `
 - License: GNU GPL v3.0; complete license text is included as `LICENSE`.
 - Source: https://github.com/nmrugg/stockfish.js
 - Engine assets: 1.8 MiB WASM and 27.6 KiB JavaScript; does not require SharedArrayBuffer or COOP/COEP.
+
 ## Stockfish
 
-- Version: Stockfish 19 (release tag `sf_19`), official `stockfish-android-arm64-universal` build.
+- Version: Stockfish 19 (release tag `sf_19`, commit `edb0d9db6731067ec50ce619ff372b463bc4dd5d`).
 - License: GNU General Public License v3.0 or later (full text: https://www.gnu.org/licenses/gpl-3.0.txt).
 - Source code: https://github.com/official-stockfish/Stockfish/tree/sf_19
 - Release asset: https://github.com/official-stockfish/Stockfish/releases/tag/sf_19
 - Project site: https://stockfishchess.org
 
-The binary is shipped unmodified, exactly as published by the Stockfish developers, as a separate
-executable (`libstockfish.so` in the arm64-v8a native library directory). AirChess does not link
-against it: the app starts it as a child process and talks to it only over the UCI text protocol.
-The repository does not contain the binary. The Gradle task `fetchStockfish` downloads the release
-asset at build time into `.cache/stockfish/`, verifies it against the pinned archive SHA-256 below
-and copies the executable into the APK unchanged.
+The Stockfish authors are listed at https://github.com/official-stockfish/Stockfish/blob/sf_19/AUTHORS.
+
+### Android
+
+The official `stockfish-android-arm64-universal` build is shipped unmodified, exactly as published
+by the Stockfish developers, as a separate executable (`libstockfish.so` in the arm64-v8a native
+library directory). The Android app does not link against it: it starts it as a child process and
+talks to it only over the UCI text protocol. The repository does not contain the binary. The Gradle
+task `fetchStockfish` downloads the release asset at build time into `.cache/stockfish/`, verifies
+it against the pinned archive SHA-256 below and copies the executable into the APK unchanged.
 
 SHA-256 of `stockfish-android-arm64-universal.tar.gz`:
 `ebb24051aa4a222b4daaf049b882ecf1163d370c128fe02316602643f4d5e426`
@@ -45,7 +50,22 @@ SHA-256 of `stockfish-android-arm64-universal.tar.gz`:
 SHA-256 of the uncompressed binary:
 `ffd8fc2004d3d19f9fdab95d84c92709aea92e8d3af405eda0b281b23cf1daf8`
 
-The Stockfish authors are listed at https://github.com/official-stockfish/Stockfish/blob/sf_19/AUTHORS.
+### iOS
+
+The iOS app links Stockfish `sf_19` statically into the app binary, built from the upstream source
+at the pinned commit above plus one small patch (`ios/stockfish/patches/0001-disable-unix-shm.patch`,
+which makes the engine keep its network in process-local memory instead of POSIX shared memory).
+Because Stockfish is GPLv3 and the app links it, the AirChess source is licensed under the GNU
+General Public License v3.0 (see `LICENSE` in the repository root); the complete corresponding
+source, including this build, is this repository.
+
+`ios/stockfish/build.sh` fetches the pinned source, applies the patch, compiles the engine with a
+small in-process UCI bridge (`ios/stockfish/src/stockfish_bridge.cpp`) and packages
+`Stockfish.xcframework` for iOS device and simulator (iOS 18.0 and later). The neural network the
+engine embeds is the one named in `src/evaluate.h` at the pinned commit:
+
+- `nn-1a298aa575a0.nnue`, from https://github.com/official-stockfish/networks
+- SHA-256: `1a298aa575a085434d29027978dc36867fe9c5bcea9376654b7a8eba1e52dfc2`
 
 ## WebRTC
 
