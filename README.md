@@ -26,7 +26,7 @@ Pick your side and a difficulty from Easy to Max, and Stockfish plays back. Made
 
 ## Challenge a friend, anywhere
 
-Create a game and send an invite. One tap opens it on your friend's phone, or in any web browser if they don't have the app yet. They place their own board on their own table, and you play live, each from your own side of the board.
+Create a game and send your friend the code. They join from the AirChess app, or tap your invite link to play right in their web browser if they don't have the app yet. On the app, they place their own board on their own table, and you play live, each from your own side of the board.
 
 Pick a time control from 1-minute bullet to 15+10 rapid, choose your color, and watch the clocks tick down. Offer a draw, resign with dignity, or demand a rematch.
 
