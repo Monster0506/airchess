@@ -72,7 +72,7 @@ jobs:
           tag="android-$VERSION_NAME-$GITHUB_RUN_ATTEMPT"
           gh release create "$tag" "$RUNNER_TEMP/download/airchess.apk" "$RUNNER_TEMP/download/SHA256SUMS" \
             --target "$GITHUB_SHA" --latest --title "Android $VERSION_NAME" \
-            --notes "Signed Android APK built from $GITHUB_SHA. Requires Android 8.0 or later. Stockfish hints require arm64. Source and third-party licenses are in the repository's README and ATTRIBUTIONS.md."
+            --notes "Signed Android APK built from $GITHUB_SHA. Requires Android 8.0 or later. Stockfish hints require arm64. Third-party licenses are in ATTRIBUTIONS.md; build instructions are in DEVELOPMENT.md."
           echo "[Download Android app](https://github.com/$GITHUB_REPOSITORY/releases/latest/download/airchess.apk)" >> "$GITHUB_STEP_SUMMARY"
       - name: Remove signing key
         if: always()
