@@ -21,6 +21,18 @@ kotlin {
         }
     }
 
+    // Stockfish is a prebuilt static library (ios/stockfish/build.sh, macOS only); cinterop
+    // embeds the slice that matches each target so tests and the app link the engine.
+    val stockfish = rootProject.layout.projectDirectory.dir("ios/stockfish")
+    mapOf(iosArm64() to "ios-arm64", iosSimulatorArm64() to "ios-arm64-simulator")
+        .forEach { (target, slice) ->
+            target.compilations.getByName("main").cinterops.create("stockfish") {
+                definitionFile.set(layout.projectDirectory.file("src/nativeInterop/cinterop/stockfish.def"))
+                includeDirs(stockfish.dir("include").asFile)
+                extraOpts("-libraryPath", stockfish.dir("build/Stockfish.xcframework/$slice").asFile.path)
+            }
+        }
+
     sourceSets {
         commonMain.dependencies {
             api(project(":chess"))

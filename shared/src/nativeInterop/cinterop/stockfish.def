@@ -1,0 +1,4 @@
+headers = stockfish_bridge.h
+package = com.airchess.engine.bridge
+staticLibraries = libstockfish.a
+linkerOpts = -lc++
