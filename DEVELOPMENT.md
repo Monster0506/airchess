@@ -45,33 +45,31 @@ Release APKs from GitHub have the hosted server built in (the `AIRCHESS_SERVER_U
 
 ## Architecture
 
-```text
- AR / 3D rendering (app/ar)        Compose overlay (app/ui)
-            \                         /
-             v                       v
-                 ChessViewModel (StateFlow<GameUiState>)
-          /            |              |                  \
-         v             v              v                   v
- ChessGame (:chess)  Stockfish   OnlineGameClient    LiveCameraSession (app/media)
-                     (UCI)       (Ktor WS)           WebRTC; mirrors the rendered
-                                     |                AR/3D scene
-                                     v                    |
- Browser client (/play/) ---> AirChess server (:server)  | video: peer to peer,
-                              validates moves with       | or Xirsys TURN relay
-                              :chess; relays WebRTC      v
-                              signaling              opponent's device
+```mermaid
+flowchart TD
+    Render["Android / iOS renderer"] --> VM["ChessViewModel"]
+    UI["Shared Compose UI"] --> VM
+    VM --> Game["ChessGame"]
+    VM --> Engine["Stockfish / UCI"]
+    VM --> Online["OnlineGameClient / Ktor"]
+    VM --> Share["Platform ViewSharing / WebRTC"]
+    Online --> Server["AirChess server"]
+    Browser["Browser client"] --> Server
+    Share --> Peer["Opponent's video stream"]
 ```
 
-Game state lives in `ChessGame`. The AR layer renders an immutable `BoardViewState` and reports tapped squares; it never decides legality. A `PieceReconciler` diffs successive positions to animate moves. The server re-validates every move with the same `:chess` module. View sharing mirrors the rendered scene GPU-side (SceneView `SurfaceMirrorer`) into a WebRTC video track; the server only relays the WebRTC setup and hands out TURN credentials.
+`ChessGame` owns the position. Renderers consume `BoardViewState` and report taps, never legal moves. `PieceReconciler` keeps piece identities across positions. The server checks moves with the same `:chess` rules. Android uses SceneView/Filament. iOS uses RealityKit and ARKit. Each platform captures only its board view for WebRTC.
 
 | Module | Contents |
 |---|---|
 | `:chess` | Multiplatform (JVM, iOS) rules, FEN, SAN |
 | `:protocol` | Multiplatform (JVM, iOS) wire messages |
-| `:shared` | Multiplatform (Android, iOS) view model, UCI engine driver, online client, models, board and AR math, prefs. iOS builds it as the static `Shared` framework |
+| `:shared` | Android/iOS Compose UI, view model, UCI driver, online client, models, board math, and preferences. Exports the static `Shared` framework on iOS |
 | `:server` | Ktor server |
-| `:app` | Android app: `ar/`, `ui/`, `engine/` (Stockfish process), `media/` (WebRTC), plus Android-only glue |
+| `:app` | Android rendering, Stockfish process, WebRTC, and platform services |
 | `server/src/main/resources/web/` | Browser client served at `/play/` |
+| `iosApp/` | SwiftUI host, RealityKit/ARKit renderer, USDZ assets, and XcodeGen project |
+| `ios/stockfish/` | Pinned Stockfish sources, C bridge, and XCFramework build |
 
 ## Requirements
 
@@ -86,7 +84,7 @@ Game state lives in `ChessGame`. The AR layer renders an immutable `BoardViewSta
 ```sh
 sh ./gradlew assembleDebug            # app/build/outputs/apk/debug/app-debug.apk
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-sh ./gradlew test                     # all unit tests (chess, protocol, server, app)
+sh ./gradlew :chess:jvmTest :protocol:jvmTest :shared:testAndroidHostTest :app:testDebugUnitTest :server:test
 ```
 
 On Windows use `gradlew.bat`. Release: `sh ./gradlew assembleRelease`. Local releases use the demo debug key unless `AIRCHESS_KEYSTORE_FILE` and the matching signing environment variables are set.
@@ -151,13 +149,69 @@ sh ./gradlew :chess:jvmTest :protocol:jvmTest :shared:testAndroidHostTest :app:t
 
 The iOS targets cannot build on Windows or Linux. The `iOS shared` workflow runs `:chess:iosSimulatorArm64Test`, `:protocol:iosSimulatorArm64Test`, `:shared:iosSimulatorArm64Test` and links the `Shared` framework on macOS.
 
+## iOS builds
+
+Requirements: macOS, Xcode 26.2, JDK 21, Android SDK 37, and XcodeGen (`brew install xcodegen`).
+The app targets iOS 18+. AR requires an ARKit-compatible iPhone or iPad. The Simulator uses the 3D board.
+AR placement still requires a real-device test.
+
+```sh
+bash ios/stockfish/build.sh ios
+cd iosApp
+xcodegen generate
+open AirChess.xcodeproj
+```
+
+Select the AirChess scheme and an iPhone Simulator in Xcode. The build phase compiles the shared Kotlin framework.
+For a device, set your registered bundle ID and Apple team in `iosApp/Config/Signing.xcconfig`.
+Command-line builds can override `AIRCHESS_BUNDLE_ID` and `DEVELOPMENT_TEAM`.
+The default server is `wss://krakenper-gambit.exe.xyz/ws`. Settings can override it.
+
+The `iOS app` workflow builds and runs the Simulator app on macOS.
+The `iOS shared` workflow runs native rules, state, and real Stockfish tests.
+Unsigned Simulator apps cannot install on an iPhone.
+
+### TestFlight
+
+Create an App Store Connect app record with the same bundle ID.
+Create the GitHub environment `ios-release`, then add these variables:
+
+| Variable | Value |
+|---|---|
+| `AIRCHESS_BUNDLE_ID` | Registered iOS bundle ID |
+| `APPLE_TEAM_ID` | Apple Developer team ID |
+
+Add these secrets to that environment:
+
+| Secret | Value |
+|---|---|
+| `IOS_CERTIFICATE_BASE64` | Base64 Apple Distribution certificate and private key, exported as `.p12` |
+| `IOS_CERTIFICATE_PASSWORD` | Password for the `.p12` |
+| `IOS_PROFILE_BASE64` | Base64 App Store provisioning profile for this team and bundle ID |
+| `APP_STORE_KEY_ID` | App Store Connect API key ID |
+| `APP_STORE_ISSUER_ID` | API issuer ID |
+| `APP_STORE_PRIVATE_KEY_BASE64` | Base64 API private key (`.p8`), with app upload permission |
+
+The existing repository secret `AIRCHESS_SERVER_URL` supplies the server URL.
+Keep keys outside Git and chat.
+
+Run **iOS release** from GitHub Actions. Select `unsigned` for a device archive without signing or upload.
+Select `testflight` for a signed archive, IPA export, validation, and upload through Apple's `altool`.
+Each workflow run uses a new build number. After Apple processes the upload, assign testers in App Store Connect.
+An unsigned archive is not installable. A successful upload does not mean Apple approved external testing.
+Signed export and upload require Apple credentials and have not run yet.
+
+`airchess://join/CODE` opens the native invite flow. HTTPS invites open the browser, which provides an explicit **Open in AirChess app** button.
+Universal links require a registered team and associated-domain setup. They are not configured.
+
+
 ## Assets and licenses
 
 See [ATTRIBUTIONS.md](ATTRIBUTIONS.md) for full details.
 
-- Piece and board GLBs are generated by `tools/models/generate_models.py` (CC0).
-- Stockfish 19 is GPLv3. It ships unmodified as a separate executable and is spoken to over UCI.
-- SceneView is Apache 2.0.
+- Board and piece GLB/USDZ assets come from `tools/models/generate_models.py` (CC0).
+- AirChess is GPLv3. Stockfish 19 uses a separate process on Android and static linking on iOS.
+- SceneView and SceneViewSwift are Apache 2.0.
 - WebRTC is BSD-3-Clause with an additional patent grant.
 - Web client: chess.js (BSD-2-Clause), three.js (MIT), stockfish.js (GPLv3).
 - The ARCore SDK is provided under Google's terms.

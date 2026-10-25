@@ -70,6 +70,9 @@ engine embeds is the one named in `src/evaluate.h` at the pinned commit:
 ## WebRTC
 
 - Library: WebRTC Android SDK 144.7559.14 (`io.github.webrtc-sdk:android`), bundled in the APK for view sharing.
+- iOS library: WebRTC 155.0.0, from the `stasel/WebRTC` Swift package, for board view sharing.
+- iOS source and license: https://github.com/stasel/WebRTC/tree/155.0.0 and https://github.com/stasel/WebRTC/blob/155.0.0/LICENSE.md.
+- iOS binary checksum (SwiftPM): `cb9adacf2d6bbf598d1d9e3e6c16d8fb97ca987b5b697746891828f9dc068ffe`.
 - License: BSD-3-Clause, plus the WebRTC additional IP rights (patent) grant. Copyright (c) 2011, The WebRTC project authors. All rights reserved.
 - Source: https://github.com/webrtc-sdk/webrtc (based on https://webrtc.googlesource.com/src)
 - License text: https://webrtc.googlesource.com/src/+/main/LICENSE
@@ -82,3 +85,10 @@ Redistribution and use in source and binary forms, with or without modification,
 - Neither the name of Google nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+## SceneViewSwift
+
+- Version: 4.62.0, Swift package product `SceneViewSwift`.
+- Source: https://github.com/sceneview/sceneview/tree/v4.62.0/SceneViewSwift
+- License: Apache License 2.0, https://github.com/sceneview/sceneview/blob/v4.62.0/LICENSE
+- Uses Apple's RealityKit and ARKit frameworks on iOS.

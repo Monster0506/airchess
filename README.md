@@ -6,6 +6,10 @@ AirChess drops a full-size, real-feeling chess set onto any table, desk, or floo
 
 **[Download for Android](https://github.com/Monster0506/airchess/releases/latest/download/airchess.apk)**. Free, no account, no ads.
 
+The native iOS target uses Kotlin Multiplatform with the same chess rules, game state, and Compose UI.
+Build it for iOS 18+ with Xcode or GitHub Actions. [iOS build and TestFlight setup](DEVELOPMENT.md#ios-builds).
+No public iOS download yet. AR still needs verification on a real iPhone.
+
 ## Play on any surface
 
 Point your phone at a table. A glowing outline finds the surface. Tap, and a polished wooden board with all 32 pieces settles into place, anchored to the real world. Walk around it. Lean in. Look at the position from your opponent's side. It stays exactly where you put it.
@@ -56,4 +60,4 @@ No phone handy? Play right in the browser, in 2D or 3D: pass and play, take on S
 
 ---
 
-<sub>AirChess is built with open-source software, including Stockfish (GPLv3). See [ATTRIBUTIONS.md](ATTRIBUTIONS.md) for credits and licenses, and [DEVELOPMENT.md](DEVELOPMENT.md) to build it yourself.</sub>
+<sub>AirChess is GPLv3. See [LICENSE](LICENSE), [ATTRIBUTIONS.md](ATTRIBUTIONS.md) for dependencies, and [DEVELOPMENT.md](DEVELOPMENT.md) for builds.</sub>
