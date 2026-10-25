@@ -6,6 +6,11 @@ on:
     paths:
       - ios/release.sh
       - .github/workflows/ios-release.yml
+      - iosApp/**
+      - shared/**
+      - chess/**
+      - protocol/**
+      - gradle/**
   workflow_dispatch:
     inputs:
       distribution:
