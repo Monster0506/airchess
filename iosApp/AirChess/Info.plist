@@ -44,6 +44,8 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>AirChess uses the camera to place the chessboard on your table in augmented reality.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>AirChess connects to chess servers on your local network when you choose a local server.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIRequiredDeviceCapabilities</key>
