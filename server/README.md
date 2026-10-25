@@ -15,6 +15,9 @@ Rooms live in memory only: restarting the server ends all games. There are no ac
   `GameSnapshot` to both players.
 - A dropped player keeps the seat for 60 seconds and can `Resume(code, token)`; after that the
   game is lost by abandonment. Rooms with nobody connected for 10 minutes are removed.
+- Relays view-sharing setup messages (WebRTC offer, answer, ICE candidates, ready, stop) between
+  the two players of a room, and sends each player ICE servers: STUN always, plus short-lived
+  (6-hour) Xirsys TURN credentials when the relay is configured. Video never passes through it.
 
 ## Run locally
 
@@ -85,6 +88,19 @@ ssh "$HOST" 'sudo mkdir -p /opt/airchess && sudo rm -rf /opt/airchess/server \
   && sudo cp /tmp/airchess.service /etc/systemd/system/ && sudo systemctl daemon-reload \
   && sudo systemctl enable airchess && sudo systemctl restart airchess'
 ```
+
+To enable the TURN relay, create `/etc/airchess.env` on the host (root-owned, mode `600`; the unit
+loads it with `EnvironmentFile=`) and restart:
+
+```sh
+XIRSYS_IDENT=...
+XIRSYS_SECRET=...
+XIRSYS_CHANNEL=...
+```
+
+Set all three or none. Without them, view sharing uses STUN only and fails between networks that
+block direct connections. The free Xirsys plan is hard-capped, so relay use never bills. Never commit
+these values.
 
 Restarting ends all live games. Logs: `ssh "$HOST" journalctl -u airchess -f`.
 

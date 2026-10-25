@@ -18,7 +18,7 @@ Stuck? Tap **Hint**. A world-class engine reads the position and draws its best 
 
 ## Challenge a friend, anywhere
 
-Create a game and share a six-character code. Your friend joins from their own phone, places their own board on their own table, and you play live, each from your own side of the board. Pick a time control, watch the clocks tick down, offer a draw, resign with dignity, or demand a rematch. Tap **Share view** and you each see the other's board, AR camera and pieces included, in a corner preview; tap it to go full screen.
+Create a game and share a six-character code, or send an invite link that opens straight into the game in the app or the browser. Your friend joins from their own phone, places their own board on their own table, and you play live, each from your own side of the board. Pick a time control and your color, watch the clocks tick down, offer a draw, resign with dignity, or demand a rematch. Tap **Share view** and you each see the other's board, AR camera and pieces included, in a corner preview; tap it to go full screen.
 
 ## Built for the moment
 
@@ -34,30 +34,34 @@ Create a game and share a six-character code. Your friend joins from their own p
 
 ## Pointing the app at a server
 
-The default server URL is `ws://localhost:8080/ws`, which reaches a server on your computer after `adb reverse tcp:8080 tcp:8080`. To bake in a hosted server, set `airchess.serverUrl=wss://your.host/ws` in `local.properties` (gitignored) or pass `-Pairchess.serverUrl=...`. The URL can also be edited in the Play online sheet.
+Release APKs from GitHub have the hosted server built in (the `AIRCHESS_SERVER_URL` secret). Local builds default to `ws://localhost:8080/ws`, which reaches a server on your computer after `adb reverse tcp:8080 tcp:8080`. To bake in a hosted server locally, set `airchess.serverUrl=wss://your.host/ws` in `local.properties` (gitignored) or pass `-Pairchess.serverUrl=...`. Players can also change the URL in Settings or the Play online sheet; a saved URL overrides the built-in default.
 
 ---
 
 ## Features
 
+- First-run onboarding that asks for your name; a home screen with Resume game, Play on the table, Play the computer, and Play a friend online.
 - Tabletop AR chess: ARCore plane detection places a board on a real table and anchors it there.
 - Complete chess rules: castling, en passant, promotion, check, checkmate, stalemate, fifty-move rule, threefold repetition, insufficient material.
 - Tap a piece to select it. Legal moves show as dots, captures as rings. Tap a destination to move.
-- Animated moves.
+- Animated moves, last-move and check highlights, and promotion to any piece.
+- Haptic feedback for moves, check, and game end.
 - Undo and reset (local games).
 - Move history in SAN.
-- Stockfish 19 hints drawn as an arrow on the board, with an evaluation. Disabled during live online games.
+- Stockfish 19 hints drawn as an arrow on the board, with an evaluation. Disabled during live online games and available again once the game ends.
 - Threatened-squares view.
 - Play the computer: Easy, Medium, Hard, Max. Undo takes back a full round. If Stockfish fails, continue the same position as a local game.
 - Resume: local and computer games survive leaving the game; online games resume by code and token.
-- Web client at `/play/`: 2D and 3D boards, local and computer play (Stockfish WASM), online play against the app.
+- Web client at `/play/`: 2D and 3D boards, local and computer play (Stockfish WASM), online play against the app. Hint depth, board flip, threat view, drag-and-drop moves, invite copy/share, an **Open in AirChess app** link on Android, resume of an interrupted online game, and a **Download Android app** link.
 - Online multiplayer:
-  - Private games joined by 6-character codes.
+  - Private games joined by 6-character codes or invite links (`airchess://join/CODE` in the app, `https://<host>/play/?code=CODE` in a browser). Opening an invite during another game asks before leaving it.
+  - Pick your color: White, Black, or Random.
   - Server-authoritative clocks: 1+0, 3+2, 5+0, 10+0, 15+10.
-  - Resign, draw offers, and rematch with color swap.
-  - Reconnect within 60 seconds.
+  - Resign, draw offers, and rematch with color swap. Leaving a live game asks first, because it forfeits.
+  - Reconnect within 60 seconds; Resume game rejoins after the app restarts.
   - Share view: streams the rendered board view (AR camera plus pieces, or the 3D/2D board) over WebRTC. No microphone, no other apps, no UI overlays. Tap the corner preview to see the opponent's view full screen; tap your own preview to return.
-- 3D fallback for devices without ARCore.
+  - Privacy: sharing is off until you tap **Share view**, and either player can stop it. Video goes directly to your opponent and is not recorded. When a direct connection is not possible it passes, encrypted, through the Xirsys TURN relay. The AirChess server only forwards connection setup messages.
+- 3D fallback for devices without ARCore, or by choice with **Prefer 3D board**.
 - Debug overlay: tracking state, plane count, FPS, anchor, FEN.
 
 ## Tech stack
@@ -68,6 +72,8 @@ The default server URL is `ws://localhost:8080/ws`, which reaches a server on yo
 - Stockfish 19 over UCI
 - Ktor 3 WebSockets (client and server)
 - kotlinx.serialization
+- WebRTC (`io.github.webrtc-sdk:android`) for view sharing, with a Xirsys TURN relay fallback
+- Web client: chess.js, three.js, stockfish.js (WASM), browser WebRTC
 
 ## Architecture
 
@@ -76,23 +82,27 @@ The default server URL is `ws://localhost:8080/ws`, which reaches a server on yo
             \                         /
              v                       v
                  ChessViewModel (StateFlow<GameUiState>)
-                /        |                \
-               v         v                 v
-     ChessGame (:chess)  Stockfish (UCI)   OnlineGameClient (Ktor WS)
-                                                    |
-                                                    v
-                                           AirChess server (:server)
-                                           validates with :chess
+          /            |              |                  \
+         v             v              v                   v
+ ChessGame (:chess)  Stockfish   OnlineGameClient    LiveCameraSession (app/media)
+                     (UCI)       (Ktor WS)           WebRTC; mirrors the rendered
+                                     |                AR/3D scene
+                                     v                    |
+ Browser client (/play/) ---> AirChess server (:server)  | video: peer to peer,
+                              validates moves with       | or Xirsys TURN relay
+                              :chess; relays WebRTC      v
+                              signaling              opponent's device
 ```
 
-Game state lives in `ChessGame`. The AR layer renders an immutable `BoardViewState` and reports tapped squares; it never decides legality. A `PieceReconciler` diffs successive positions to animate moves. The server re-validates every move with the same `:chess` module.
+Game state lives in `ChessGame`. The AR layer renders an immutable `BoardViewState` and reports tapped squares; it never decides legality. A `PieceReconciler` diffs successive positions to animate moves. The server re-validates every move with the same `:chess` module. View sharing mirrors the rendered scene GPU-side (SceneView `SurfaceMirrorer`) into a WebRTC video track; the server only relays the WebRTC setup and hands out TURN credentials.
 
 | Module | Contents |
 |---|---|
 | `:chess` | Pure Kotlin rules, FEN, SAN |
 | `:protocol` | Wire messages |
 | `:server` | Ktor server |
-| `:app` | Android app: `ar/`, `ui/`, `viewmodel/`, `engine/`, `net/`, `model/`, `data/` |
+| `:app` | Android app: `ar/`, `ui/`, `viewmodel/`, `engine/`, `net/`, `media/`, `model/`, `data/` |
+| `server/src/main/resources/web/` | Browser client served at `/play/` |
 
 ## Requirements
 
@@ -154,15 +164,16 @@ View sharing connects peers directly over STUN. For peers that cannot connect di
   - Hint
   - History
   - Share view / Stop sharing (online)
-  - Settings: engine depth 8-20, legal-move dots, threatened squares, haptics, debug overlay
-  - Online: create or join with a code. Share sends the code.
+  - Settings: name, server URL, Prefer 3D board, engine depth 8-20, legal-move dots, threatened squares, haptics, debug overlay
+  - Online: create or join with a code. Share invite and Copy invite link send a link that opens the game.
+- **Game over:** Play again or Home in local and computer games; Rematch or Home online.
 
 ## Testing
 
 - `:chess`: rules, including perft.
 - `:protocol`: codec.
-- `:server`: rooms, clocks, WebSocket integration.
-- `:app`: view model, UCI parsing, board geometry, piece reconciliation.
+- `:server`: rooms, clocks, view-sharing signaling, WebSocket integration.
+- `:app`: view model (local, computer, online, resume, expired rooms), UCI parsing, board geometry, piece reconciliation.
 
 ## Assets and licenses
 
@@ -171,4 +182,6 @@ See [ATTRIBUTIONS.md](ATTRIBUTIONS.md) for full details.
 - Piece and board GLBs are generated by `tools/models/generate_models.py` (CC0).
 - Stockfish 19 is GPLv3. It ships unmodified as a separate executable and is spoken to over UCI.
 - SceneView is Apache 2.0.
+- WebRTC is BSD-3-Clause with an additional patent grant.
+- Web client: chess.js (BSD-2-Clause), three.js (MIT), stockfish.js (GPLv3).
 - The ARCore SDK is provided under Google's terms.
