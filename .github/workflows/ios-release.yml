@@ -1,0 +1,100 @@
+name: iOS release
+
+on:
+  push:
+    branches: [feat/ios]
+    paths:
+      - ios/release.sh
+      - .github/workflows/ios-release.yml
+  workflow_dispatch:
+    inputs:
+      distribution:
+        description: Unsigned archive or signed TestFlight upload
+        type: choice
+        options: [unsigned, testflight]
+        default: unsigned
+      version:
+        description: Marketing version
+        type: string
+        default: '1.0.0'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 90
+    environment: ios-release
+    env:
+      AIRCHESS_SF_CACHE: ${{ github.workspace }}/.cache/stockfish
+      AIRCHESS_BUNDLE_ID: ${{ vars.AIRCHESS_BUNDLE_ID }}
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+      AIRCHESS_VERSION: ${{ inputs.version || '1.0.0' }}
+      AIRCHESS_BUILD_NUMBER: ${{ github.run_number }}
+      AIRCHESS_SERVER_URL: ${{ secrets.AIRCHESS_SERVER_URL }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Select Xcode 26.2
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+
+      - name: Install build tools
+        run: |
+          sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
+          brew install xcodegen
+
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+
+      - name: Cache Kotlin Native
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: konan-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Cache Stockfish source and net
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ env.AIRCHESS_SF_CACHE }}
+          key: stockfish-inputs-${{ hashFiles('ios/stockfish/pins.env') }}
+
+      - name: Cache Stockfish xcframework
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ios/stockfish/build/Stockfish.xcframework
+          key: stockfish-xcframework-${{ hashFiles('ios/stockfish/build.sh', 'ios/stockfish/pins.env', 'ios/stockfish/lib.mk', 'ios/stockfish/patches/**', 'ios/stockfish/src/**', 'ios/stockfish/include/**') }}
+
+      - name: Archive and optionally upload
+        env:
+          DISTRIBUTION: ${{ inputs.distribution || 'unsigned' }}
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+          APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
+          APP_STORE_PRIVATE_KEY_BASE64: ${{ secrets.APP_STORE_PRIVATE_KEY_BASE64 }}
+        run: bash ios/release.sh "$DISTRIBUTION"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-release-${{ inputs.distribution || 'unsigned' }}
+          path: |
+            build/ios-release/AirChess-unsigned.xcarchive.zip
+            build/ios-release/export/*.ipa
+          if-no-files-found: error
+          retention-days: 7

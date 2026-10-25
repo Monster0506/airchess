@@ -7,4 +7,4 @@ PRODUCT_BUNDLE_IDENTIFIER = $(AIRCHESS_BUNDLE_ID)
 CODE_SIGN_STYLE = Automatic
 
 // `//` starts a comment in xcconfig files, so the scheme separator is spelled with $().
-AIRCHESS_SERVER_URL = ws:/$()/localhost:8080/ws
+AIRCHESS_SERVER_URL = wss:/$()/krakenper-gambit.exe.xyz/ws
