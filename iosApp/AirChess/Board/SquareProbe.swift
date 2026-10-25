@@ -21,7 +21,7 @@ final class SquareProbe: ObservableObject {
         let viewport = view.bounds.size
         guard viewport.width > 0, viewport.height > 0 else { return }
 
-        let origin = view.convert(.zero, to: view.window)
+        let origin = view.convert(CGPoint.zero, to: view.window)
         let size = scene.layout.squareSize
         var result: [Int: CGRect] = [:]
         for square in 0..<64 {

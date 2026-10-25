@@ -154,8 +154,8 @@ final class IosViewSharingSessionImpl: NSObject, IosViewSharingSessionBridge {
                 else { pendingCandidates.append(candidate) }
             case .stop:
                 break
-            @unknown default:
-                break
+            default:
+                fail("Unsupported view-sharing signal")
             }
         } catch {
             fail("View connection failed: \(error.localizedDescription)")
