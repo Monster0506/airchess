@@ -140,6 +140,22 @@ private struct SharingVideoSurface: UIViewRepresentable {
         let showOpponent = $showOpponent
         return bridge.makeView(onSwap: { showOpponent.wrappedValue.toggle() })
     }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(bridge: bridge)
+    }
+
+    static func dismantleUIView(_ view: UIView, coordinator: Coordinator) {
+        coordinator.bridge.releaseView(view: view)
+    }
+
+    final class Coordinator {
+        let bridge: IosViewSharingBridgeImpl
+
+        init(bridge: IosViewSharingBridgeImpl) {
+            self.bridge = bridge
+        }
+    }
+
 
     func updateUIView(_ view: UIView, context: Context) {
         bridge.showOpponent(opponent: showOpponent, view: view)

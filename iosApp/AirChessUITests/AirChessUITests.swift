@@ -94,6 +94,8 @@ final class AirChessUITests: XCTestCase {
             differentFrom: initialFrame?.checksum
         )
         XCTAssertNotNil(updatedFrame, "native renderer did not receive the changed browser board")
+        XCTAssertGreaterThan(updatedFrame?.frames ?? 0, initialFrame?.frames ?? 0)
+        XCTAssertNotEqual(updatedFrame?.checksum, initialFrame?.checksum)
         snapshot("11-online-e4-e5")
         let browserMoved = waitForSmokePhase("awaiting-native-g1f3", timeout: 30)
         XCTAssertNotNil(browserMoved, "browser peer did not publish e7e5")
